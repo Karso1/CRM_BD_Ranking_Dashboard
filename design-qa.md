@@ -1,31 +1,30 @@
-# Design QA — UP 每日业绩排名
+# Design QA — UPay Trend Intelligence
 
-## Comparison evidence
+Reference: selected “Trend Intelligence” direction (`exec-a0abc050-1e8a-4597-b0e6-89bac76c4047.png`).
 
-- Source visual truth: `/Users/admin/.codex/generated_images/01a07551-e6e5-7de2-9328-e813a3cbf829/exec-426918db-0f17-4575-9616-dc02a8fd1b3d.png`
-- Implementation: in-app browser tab 1, `http://localhost:4173/`, captured in this task as the rendered implementation screenshot (browser capture is inline and not materialized as a filesystem image).
-- Source viewport: 1440 × 1024 desktop dashboard concept.
-- Implementation viewport: responsive narrow desktop/mobile browser surface; implementation uses its intended responsive layout.
-- State checked: Manager ranking default; API tab; search for `UCPay`; reset to Manager ranking.
+## Iteration 1
 
-## Findings
+- P1: The existing page was still organized around a ranking table and did not match the selected analytics-first hierarchy.
+- P1: UPay mint branding and the official logo were missing.
+- P1: Trend, contribution, daily velocity, and exception views were absent.
+- P2: The narrow preview wrapped the export label onto two lines.
 
-- No actionable P0/P1/P2 issues found in the implemented responsive view.
-- Typography: compact Chinese operational labels preserve the reference’s hierarchy; table text stays readable at the narrow viewport.
-- Spacing and layout: the desktop rail collapses deliberately on smaller widths, keeping KPI metrics, rank controls, and ranking rows visible without clipping the primary content.
-- Colors and tokens: the navy canvas, subtle blue panels, blue primary action, and green/amber/red status states follow the selected dark control-room direction.
-- Image quality: the selected source uses no required photographic or illustrative assets. The implementation uses an icon library for functional controls and does not substitute required visual assets.
-- Copy and content: all presented labels relate directly to internal rankings, filters, and action status. Sample metrics are grounded in the September summary workbook.
+## Fixes
 
-## Interaction checks
+- Rebuilt the information hierarchy around filters → KPI strip → analytics → detailed ranking.
+- Added cumulative actual-vs-target, BD contribution, daily recharge, and attention visualizations backed by current filtered data.
+- Applied the UPay dark/mint visual system and official UPay favicon asset.
+- Preserved month, date range, BD, metric, entity type, search, language, refresh, and print/export interactions.
+- Changed the mobile export action to an icon button to avoid wrapping.
 
-- API tab changes the ranking table to API records.
-- Search filters the table to `UCPay`.
-- Resetting the search and selecting Manager restores the full manager leaderboard.
-- Export report opens the browser print flow.
+## Final verification
 
-## Follow-up polish
+- [x] Selected concept and implementation compared side-by-side.
+- [x] Mobile layout remains readable at a 319 px preview width.
+- [x] Filter controls, KPI values, charts, attention queue, and ranking content render from the September dataset.
+- [x] Chinese and English labels are present.
+- [x] `npm run lint` passes.
+- [x] `npm run build` passes.
+- [x] No blocking runtime error appeared in the browser accessibility tree.
 
-- P3: connect the displayed rows to a refreshable imported Excel data set before operational use.
-
-final result: passed
+Result: **Passed**.
