@@ -69,6 +69,8 @@
 .filter-actions{display:flex;align-items:center;gap:8px}
 .reset-button{height:38px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #2c4747;border-radius:7px;background:#0c1c1f;color:#9ab3ae;font-size:11px;white-space:nowrap}
 .reset-button:hover{border-color:#4a8373;background:#112729;color:#d6f4e9}
+.spin{animation:dashboard-spin .8s linear infinite}
+@keyframes dashboard-spin{to{transform:rotate(360deg)}}
 @media(max-width:620px){
   .date-range-fields{grid-column:1/-1;display:grid;grid-template-columns:1fr 14px 1fr;gap:6px;width:100%}
   .date-range-fields input{width:100%;min-width:0}

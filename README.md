@@ -19,7 +19,10 @@ UP Business 与 UPay Wallet 的月度业绩排名看板。支持平台切换，�
 - `UB每日数据.xlsx`：UP Business 的充值、消费、开卡及 BD 目标数据
 - `UW每日数据.xlsx`：UPay Wallet 的消费、开卡及 BD 目标数据
 
-原始 Excel、UID、卡号和 Google Sheet 凭据不会提交到仓库。网页读取的是已整理的 `app/dashboard-data.json` 和 `app/wallet-data.json`。
+原始 Excel、UID、卡号和 Google Sheet 凭据不会提交到仓库。网页有两层数据来源：
+
+- **默认备用数据**：`app/dashboard-data.json` 与 `app/wallet-data.json`，仅用于本地预览或数据接口暂不可用时。
+- **线上实时数据**：Cloudflare Worker 从私有 Apps Script 读取两份私有 Google Sheet 的聚合结果；Apps Script 的访问密钥只保存在 Cloudflare，不会发送到访问者浏览器。
 
 ## 更新数据
 
@@ -34,7 +37,13 @@ git commit -m "更新月度看板数据"
 git push
 ```
 
-目前这是“导入后发布”的方式。后续可接入 Google Sheets：每天将月度汇总结果记录为快照，网站读取专用汇总表后即可自动更新并支持按日期回看。
+### 日常更新（上线后的固定步骤）
+
+1. 使用 `karsol0001@gmail.com` 更新两份专用 Google Sheet：UP Business 与 UPay Wallet。
+2. 保持原有工作表名称和列结构；只更新数据，不删除月度汇总或每日明细。
+3. 打开网站并点击右上角刷新按钮（或直接刷新浏览器）。网站会重新读取最新聚合数据，无需再上传 Excel、提交 GitHub 或重新部署。
+
+Apps Script 与 Cloudflare 的一次性配置说明在 [`google-apps-script/README.md`](google-apps-script/README.md)。
 
 ## 本地运行
 

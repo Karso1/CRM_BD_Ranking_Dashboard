@@ -4,7 +4,10 @@
  * Setup:
  * 1. Create an Apps Script project at script.google.com.
  * 2. Paste this file into Code.gs.
- * 3. In Project Settings > Script properties, set DASHBOARD_API_KEY.
+ * 3. In Project Settings > Script properties, set:
+ *    - DASHBOARD_API_KEY
+ *    - BUSINESS_SPREADSHEET_ID (the personally-owned UP Business source)
+ *    - WALLET_SPREADSHEET_ID (the personally-owned UPay Wallet source)
  * 4. Deploy as a Web app (execute as: you; access: anyone), then add
  *    ?key=<DASHBOARD_API_KEY> to its /exec URL in Cloudflare as
  *    DASHBOARD_SOURCE_URL.
@@ -14,10 +17,7 @@
  */
 
 const CONFIG = {
-  businessSpreadsheetId: '1rZ6PZBXqBZ7cWJ0RMBh5wtFRpnL-JiwfM-2TjDnQGnM',
-  walletSpreadsheetId: '1KW43zosuBwo9_GP27-px2Yw4IhnoVUFliv4XPntAUJk',
   year: 2026,
-  cacheSeconds: 300,
 };
 
 const BUSINESS_MONTHS = {
@@ -42,18 +42,12 @@ function doGet(e) {
   if (!expectedKey || !e.parameter || e.parameter.key !== expectedKey) {
     return json({ error: 'Unauthorized' });
   }
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get('dashboard-payload');
-  if (cached) return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
-
   const payload = {
     updatedAt: new Date().toISOString(),
     business: { source: 'UP 每日数据（看板数据源）', periods: buildBusiness() },
     wallet: { source: 'UPay Wallet 每日数据（看板数据源）', metric: 'consumption', periods: buildWallet() },
   };
-  const output = JSON.stringify(payload);
-  cache.put('dashboard-payload', output, CONFIG.cacheSeconds);
-  return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function json(value) {
@@ -78,8 +72,14 @@ function sheetValues(book, name) {
   return sheet.getDataRange().getValues();
 }
 
+function spreadsheetId(propertyName) {
+  const id = PropertiesService.getScriptProperties().getProperty(propertyName);
+  if (!id) throw new Error(`Missing Script property: ${propertyName}`);
+  return id;
+}
+
 function buildBusiness() {
-  const book = SpreadsheetApp.openById(CONFIG.businessSpreadsheetId);
+  const book = SpreadsheetApp.openById(spreadsheetId('BUSINESS_SPREADSHEET_ID'));
   return Object.keys(BUSINESS_MONTHS).map((monthText) => {
     const month = Number(monthText);
     const [summaryName, dailyName] = BUSINESS_MONTHS[month];
@@ -157,7 +157,7 @@ function parseBusinessDetails(rows, dailyMap, yesterday) {
 function lastIndex(values, predicate) { let found = -1; values.forEach((value, index) => { if (predicate(value)) found = index; }); return found; }
 
 function buildWallet() {
-  const book = SpreadsheetApp.openById(CONFIG.walletSpreadsheetId);
+  const book = SpreadsheetApp.openById(spreadsheetId('WALLET_SPREADSHEET_ID'));
   return Object.keys(WALLET_MONTHS).map((monthText) => {
     const month = Number(monthText);
     const [summaryName, dailyName] = WALLET_MONTHS[month];
