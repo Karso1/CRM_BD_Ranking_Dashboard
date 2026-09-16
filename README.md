@@ -1,10 +1,11 @@
-# UPay BD Ranking
+# UPay Performance Dashboard
 
-UPay BD、代理商与 API 的月度业绩排名看板。页面为中文，支持按月份、BD、排名指标和名称筛选。
+UP Business 与 UPay Wallet 的月度业绩排名看板。支持平台切换，并可按月份、日期、BD、排名指标和名称筛选。
 
 ## 看板功能
 
-- 总体、代理商、API 三个排名页签
+- UP Business：总体、代理商、API 三个排名页签
+- UPay Wallet：总体与代理商排名页签
 - 2026 年 1 月至 9 月的月份切换
 - 选择 BD 后，仅显示该 BD 关联的代理商和 API
 - BD 月目标、累计充值、当日充值、开卡数与完成率
@@ -13,21 +14,22 @@ UPay BD、代理商与 API 的月度业绩排名看板。页面为中文，支�
 
 ## 数据从哪里来
 
-当前看板使用 `UB每日数据.xlsx` 中的月度汇总数据生成：
+当前看板使用两份月度数据生成：
 
-- `1月目标进展` 至 `9月汇总`：BD 目标与完成情况
-- `代理日汇总*`、`代理商日汇总*`：代理商/API、所属 BD、充值、消费与开卡数据
+- `UB每日数据.xlsx`：UP Business 的充值、消费、开卡及 BD 目标数据
+- `UW每日数据.xlsx`：UPay Wallet 的消费、开卡及 BD 目标数据
 
-原始 Excel、UID、卡号和 Google Sheet 凭据不会提交到仓库。网页实际读取的是已整理的 `app/dashboard-data.json`。
+原始 Excel、UID、卡号和 Google Sheet 凭据不会提交到仓库。网页读取的是已整理的 `app/dashboard-data.json` 和 `app/wallet-data.json`。
 
 ## 更新数据
 
-当你拿到更新后的 `UB每日数据.xlsx` 后，在项目根目录运行：
+当你拿到更新后的数据表后，在项目根目录运行：
 
 ```bash
 python3 scripts/import_ub_excel.py "/完整路径/UB每日数据.xlsx" app/dashboard-data.json
+python3 scripts/import_uw_excel.py "/完整路径/UW每日数据.xlsx" app/wallet-data.json
 npm run build
-git add app/dashboard-data.json
+git add app/dashboard-data.json app/wallet-data.json
 git commit -m "更新月度看板数据"
 git push
 ```
@@ -56,8 +58,10 @@ npm run build
 ## 项目文件说明
 
 - `app/page.tsx`：看板页面、筛选与排名逻辑
-- `app/dashboard-data.json`：网页读取的已整理数据
-- `scripts/import_ub_excel.py`：从 Excel 提取月度汇总数据的脚本
+- `app/dashboard-data.json`：UP Business 的已整理数据
+- `app/wallet-data.json`：UPay Wallet 的已整理数据
+- `scripts/import_ub_excel.py`：导入 UP Business 数据
+- `scripts/import_uw_excel.py`：导入 UPay Wallet 数据
 - `app/globals.css`：页面样式
 
 ## 注意事项
