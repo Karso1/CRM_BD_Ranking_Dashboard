@@ -59,3 +59,20 @@
   .filter-utilities{grid-template-columns:1fr;width:100%}
   .filter-utilities small{justify-self:start}
 }
+
+/* Cross-period filter controls and explicit quick navigation. */
+.nav-caption{margin:0 12px 10px;color:#506966;font-size:9px;font-weight:800;letter-spacing:.15em;text-transform:uppercase}
+.date-range-fields{display:flex;align-items:end;gap:8px;padding:0 2px}
+.date-range-fields label{min-width:0}
+.date-range-fields input{min-width:156px}
+.date-divider{height:38px;display:flex;align-items:center;color:#5f7e78;font-size:15px}
+.filter-actions{display:flex;align-items:center;gap:8px}
+.reset-button{height:38px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #2c4747;border-radius:7px;background:#0c1c1f;color:#9ab3ae;font-size:11px;white-space:nowrap}
+.reset-button:hover{border-color:#4a8373;background:#112729;color:#d6f4e9}
+@media(max-width:620px){
+  .date-range-fields{grid-column:1/-1;display:grid;grid-template-columns:1fr 14px 1fr;gap:6px;width:100%}
+  .date-range-fields input{width:100%;min-width:0}
+  .date-divider{justify-content:center}
+  .filter-actions{display:grid;grid-template-columns:auto minmax(0,1fr);width:100%}
+  .filter-actions .search-box{min-width:0}
+}

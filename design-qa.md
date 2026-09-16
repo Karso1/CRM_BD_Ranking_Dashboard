@@ -34,4 +34,14 @@
 
 - [P3] Consider a compact filter drawer only if the dashboard later gains more than six filter fields.
 
+### Iteration 3 — cross-month filtering
+
+- [P1] A date-range selection was implicitly limited by the selected month, so it could not represent an operational period spanning multiple months.
+  - Fix: added an **All history** month scope. Selecting the cross-month basis starts from the full available history and keeps the start/end inputs independently bounded only by the data range.
+- [P2] The range inputs looked like isolated form fields and did not make the direction or reset behaviour clear.
+  - Fix: placed start and end fields in a dedicated range group with an arrow divider, native calendar controls, and an adjacent reset button. The narrow layout preserves both dates on one intentional grid row.
+- [P2] The sidebar labels suggested separate pages even though the view is a single dashboard.
+  - Fix: recast them as **Quick jump** actions: overview, BD ranking, agent/API ranking, and trend analysis each scroll to a meaningful dashboard section and select the matching ranking view where appropriate.
+- Visual/interaction verification: used the local app to select cross-month mode (showing `01/01/2026 → 14/09/2026`), changed the range to August–September, then used Reset filters. Reset restored September month-to-date and its as-of date. Narrow-screen capture confirms the range group, reset action, and search field remain readable.
+
 **final result: passed**
