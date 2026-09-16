@@ -30,7 +30,7 @@ function Kpi({label,value,hint,icon,accent=false}:{label:string;value:string;hin
 
 export default function Home(){
  const initialPeriod=platformPeriods.business.at(-1)!;
- const [platform,setPlatform]=useState<Platform>("business"),[lang,setLang]=useState<Lang>("zh"),[month,setMonth]=useState(initialPeriod.id),[mode,setMode]=useState<"mtd"|"range">("mtd"),[start,setStart]=useState(initialPeriod.start),[end,setEnd]=useState(initialPeriod.end),[owner,setOwner]=useState("全部BD"),[metric,setMetric]=useState("充值金额"),[view,setView]=useState<View>("总体"),[search,setSearch]=useState(""),[updated,setUpdated]=useState("2026-09-15 10:20"),[nav,setNav]=useState("dashboard");
+ const [platform,setPlatform]=useState<Platform>("business"),[lang,setLang]=useState<Lang>("en"),[month,setMonth]=useState(initialPeriod.id),[mode,setMode]=useState<"mtd"|"range">("mtd"),[start,setStart]=useState(initialPeriod.start),[end,setEnd]=useState(initialPeriod.end),[owner,setOwner]=useState("全部BD"),[metric,setMetric]=useState("充值金额"),[view,setView]=useState<View>("总体"),[search,setSearch]=useState(""),[updated,setUpdated]=useState("2026-09-15 10:20"),[nav,setNav]=useState("dashboard");
  const mounted=useSyncExternalStore(()=>()=>{},()=>true,()=>false);
  const t=words[lang],periods=platformPeriods[platform],period=periods.find(p=>p.id===month)??periods.at(-1)!;
  const firstDate=periods.at(0)!.start,lastDate=periods.at(-1)!.end;
