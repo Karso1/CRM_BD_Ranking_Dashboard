@@ -4,5 +4,6 @@ declare namespace Cloudflare {
     BUCKET?: R2Bucket;
     /** Private Apps Script endpoint, including its access key. */
     DASHBOARD_SOURCE_URL?: string;
+    WALLET_SOURCE_URL?: string;
   }
 }

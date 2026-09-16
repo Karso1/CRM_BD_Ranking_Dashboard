@@ -18,6 +18,7 @@ This folder contains the Google Apps Script used by the dashboard to read the tw
 4. Deploy the project as a **Web app**. It must run as your Google account and be accessible to **Anyone**.
 5. Copy the deployed URL ending in `/exec`, then append `?key=` and the API key.
 6. In Cloudflare Workers & Pages → `upay-bd-ranking` → Settings → Variables and Secrets, create a secret named `DASHBOARD_SOURCE_URL` and paste that complete URL.
+7. The automated Wallet pipeline uses a separate secret named `WALLET_SOURCE_URL`. It points to the deployed Wallet sync web app and is intentionally kept separate from the existing Business / Wallet legacy source.
 
 The source spreadsheets remain private. The endpoint checks the key and returns only aggregated dashboard data.
 
