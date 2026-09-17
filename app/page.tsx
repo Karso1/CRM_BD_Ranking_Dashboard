@@ -36,6 +36,7 @@ export default function Home(){
  const mounted=useSyncExternalStore(()=>()=>{},()=>true,()=>false);
  const syncData=useCallback(async()=>{setSyncing(true);try{const response=await fetch("/api/dashboard",{cache:"no-store"});if(!response.ok)return;const payload=await response.json() as DashboardPayload;const business=payload.business?.periods,wallet=payload.wallet?.periods;if(!business?.length||!wallet?.length)return;setPeriodSets({business,wallet});if(payload.updatedAt)setUpdated(new Date(payload.updatedAt).toLocaleString(lang==="zh"?"zh-CN":"en-GB",{hour12:false}));}catch{}finally{setSyncing(false)}},[lang]);
  useEffect(()=>{const timer=window.setTimeout(()=>{void syncData()},0);return()=>window.clearTimeout(timer)},[syncData]);
+ useEffect(()=>{const fallbackLatest=fallbackPeriods[platform].at(-1)!,latest=periodSets[platform].at(-1)!;if(mode==="mtd"&&month===fallbackLatest.id&&start===fallbackLatest.start&&end===fallbackLatest.end&&latest.end!==end){setMonth(latest.id);setStart(latest.start);setEnd(latest.end)}},[periodSets,platform,mode,month,start,end]);
  const t=words[lang],periods=periodSets[platform],period=periods.find(p=>p.id===month)??periods.at(-1)!;
  const firstDate=periods.at(0)!.start,lastDate=periods.at(-1)!.end;
  const isWallet=platform==="wallet";
