@@ -1,79 +1,58 @@
-# UPay Performance Dashboard
+# UPay Performance Dashboard｜操作说明
 
-UP Business 与 UPay Wallet 的月度业绩排名看板。支持平台切换，并可按月份、日期、BD、排名指标和名称筛选。
+线上看板：<https://upay-bd-ranking.karsol.workers.dev/>
 
-## 看板功能
+这个项目展示两个平台的数据：
 
-- UP Business：总体、代理商、API 三个排名页签
-- UPay Wallet：总体与代理商排名页签
-- 2026 年 1 月至 9 月的月份切换
-- 选择 BD 后，仅显示该 BD 关联的代理商和 API
-- BD 月目标、累计充值、当日充值、开卡数与完成率
-- 代理商/API 的累计充值、累计消费、当日充值与开卡数
-- 导出当前页面用于日报
+- **UP Business**：沿用已有的 Google Sheet 数据源。
+- **UPay Wallet**：由本地程序读取后台原始导出，自动计算后同步到 Google Sheet，再由网站读取。
 
-## 数据从哪里来
+> 日常更新 Wallet **不需要**改网页代码、上传 GitHub、重新部署 Cloudflare，也不需要手动做 VLOOKUP 或 SUMIFS。
 
-当前看板使用两份月度数据生成：
+## 今天要做什么？
 
-- `UB每日数据.xlsx`：UP Business 的充值、消费、开卡及 BD 目标数据
-- `UW每日数据.xlsx`：UPay Wallet 的消费、开卡及 BD 目标数据
+每天更新 UPay Wallet 时，按下面四步操作即可。
 
-原始 Excel、UID、卡号和 Google Sheet 凭据不会提交到仓库。网页有两层数据来源：
+1. 从后台下载最新原始文件，放入本机 `UPW每日数据/total data` 文件夹。
+2. 如果出现新总代理 UID 或归属变更，在 `UW每日数据.xlsx` 的 `代理商明细 ` 工作表补充归属关系。
+3. 双击 `UPW每日数据/upw-daily-pipeline/同步到GoogleSheet.command`。
+4. 等终端显示“完成”，打开并刷新线上看板，切换到 **UPay Wallet** 查看结果。
 
-- **默认备用数据**：`app/dashboard-data.json` 与 `app/wallet-data.json`，仅用于本地预览或数据接口暂不可用时。
-- **线上实时数据**：Cloudflare Worker 从私有 Apps Script 读取两份私有 Google Sheet 的聚合结果；Apps Script 的访问密钥只保存在 Cloudflare，不会发送到访问者浏览器。
+完整日常操作说明见 [Wallet 每日运行手册](docs/WALLET_DAILY_WORKFLOW_CN.md)。
 
-## 更新数据
+## 数据流是怎样的？
 
-当你拿到更新后的数据表后，在项目根目录运行：
-
-```bash
-python3 scripts/import_ub_excel.py "/完整路径/UB每日数据.xlsx" app/dashboard-data.json
-python3 scripts/import_uw_excel.py "/完整路径/UW每日数据.xlsx" app/wallet-data.json
-npm run build
-git add app/dashboard-data.json app/wallet-data.json
-git commit -m "更新月度看板数据"
-git push
+```text
+后台原始导出文件
+        ↓
+本地 Wallet 计算程序
+        ↓
+Google Sheet：DashboardWalletDaily（程序专用页）
+        ↓
+Cloudflare Worker（服务器端私密读取）
+        ↓
+公开的 UPay 排名网站
 ```
 
-### 日常更新（上线后的固定步骤）
+网站访问者看不到原始 UID、卡号、Google Sheet 私密地址或访问密钥。
 
-1. 使用 `karsol0001@gmail.com` 更新两份专用 Google Sheet：UP Business 与 UPay Wallet。
-2. 保持原有工作表名称和列结构；只更新数据，不删除月度汇总或每日明细。
-3. 打开网站并点击右上角刷新按钮（或直接刷新浏览器）。网站会重新读取最新聚合数据，无需再上传 Excel、提交 GitHub 或重新部署。
+## 哪些内容可以修改？
 
-Apps Script 与 Cloudflare 的一次性配置说明在 [`google-apps-script/README.md`](google-apps-script/README.md)。
+| 内容 | 是否手动改 | 什么时候改 |
+| --- | --- | --- |
+| `total data` 的后台原始导出 | 是 | 每天下载最新数据后 |
+| `代理商明细 ` 的总代 UID → BD → 代理商关系 | 是 | 新总代、新代理或归属调整时 |
+| `outputs/` 里的 CSV | 否 | 程序自动生成，会被覆盖 |
+| Google Sheet 的 `DashboardWalletDaily` 页 | 否 | 程序自动写入，会被覆盖 |
+| `sync.local.json` | 否 | 本机私密连接配置，不可删除或上传 |
+| 网页代码、GitHub、Cloudflare 设置 | 否 | 日常更新无需操作 |
 
-## 本地运行
+## 目标数据说明
 
-需要 Node.js 22 或更新版本，以及 Python 3（用于导入 Excel）。
+交易、注册、开卡与消费数据已经自动化；**月目标/BD 目标目前尚未做成独立的可编辑目标表**。因此日常更新时不需要改目标。
 
-```bash
-npm install
-npm run dev
-```
+下一阶段会新增一张简单的目标配置表，例如：`月份｜平台｜BD｜代理商｜月目标`。届时只要改这张表，完成率、缺口和图表会自动变化；不需要碰公式。
 
-终端会显示本地访问地址，通常是 `http://localhost:4173`。
+## 开发说明
 
-## 发布
-
-```bash
-npm run build
-```
-
-当前版本已部署为私有预览。若要让团队成员直接访问，可以将部署平台的访问权限改为公开，或后续绑定自己的域名。
-
-## 项目文件说明
-
-- `app/page.tsx`：看板页面、筛选与排名逻辑
-- `app/dashboard-data.json`：UP Business 的已整理数据
-- `app/wallet-data.json`：UPay Wallet 的已整理数据
-- `scripts/import_ub_excel.py`：导入 UP Business 数据
-- `scripts/import_uw_excel.py`：导入 UPay Wallet 数据
-- `app/globals.css`：页面样式
-
-## 注意事项
-
-- 不要将原始 Excel、访问令牌、Google Sheet 密钥或卡号/UID 上传到 GitHub。
-- 若仓库需要对外公开，请先确认 `app/dashboard-data.json` 中的汇总数据可以公开。
+项目使用 TypeScript / React，并部署在 Cloudflare Workers。源代码、构建流程和私密变量均已与原始数据隔离；原始 Excel、UID、卡号和密钥不会提交到 GitHub。
