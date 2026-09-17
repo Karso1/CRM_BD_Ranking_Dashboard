@@ -69,6 +69,7 @@
 .filter-actions{display:flex;align-items:center;gap:8px}
 .reset-button{height:38px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #2c4747;border-radius:7px;background:#0c1c1f;color:#9ab3ae;font-size:11px;white-space:nowrap}
 .reset-button:hover{border-color:#4a8373;background:#112729;color:#d6f4e9}
+.wallet-sync-notice{display:flex;align-items:center;gap:9px;margin:0 0 14px;padding:11px 14px;border:1px solid #2b6457;border-radius:9px;background:#0d2825;color:#9ce6cf;font-size:12px;font-weight:600}
 .spin{animation:dashboard-spin .8s linear infinite}
 @keyframes dashboard-spin{to{transform:rotate(360deg)}}
 @media(max-width:620px){
