@@ -1,16 +1,17 @@
 import { env } from "cloudflare:workers";
 
 /** Keeps the Apps Script key on the Worker, never in a browser. */
-export async function GET() {
+export async function GET(request: Request) {
   const businessSourceUrl = env.DASHBOARD_SOURCE_URL;
   const walletSourceUrl = env.WALLET_SOURCE_URL;
-  const read = async (url?: string) => {
+  const platform = new URL(request.url).searchParams.get("platform");
+  const read = async (url: string | undefined, timeout: number) => {
     if (!url) return null;
     try {
       const upstream = await fetch(url, {
         headers: { Accept: "application/json" },
         cf: { cacheTtl: 0, cacheEverything: false },
-        signal: AbortSignal.timeout(12_000),
+        signal: AbortSignal.timeout(timeout),
       });
       return upstream.ok ? await upstream.json() : null;
     } catch {
@@ -18,11 +19,11 @@ export async function GET() {
     }
   };
 
-  // Each platform has its own data source. Read them concurrently so a slow
-  // Apps Script on one platform can never hide fresh data from the other.
+  // A selected platform is fetched on its own. This matters for Wallet: a
+  // slow UP Business Apps Script must never delay or hide Wallet updates.
   const [businessPayload, walletPayload] = await Promise.all([
-    read(businessSourceUrl) as Promise<{ business?: unknown; updatedAt?: string } | null>,
-    read(walletSourceUrl) as Promise<{ wallet?: unknown; updatedAt?: string } | null>,
+    platform === "wallet" ? null : read(businessSourceUrl, 12_000) as Promise<{ business?: unknown; updatedAt?: string } | null>,
+    platform === "business" ? null : read(walletSourceUrl, 55_000) as Promise<{ wallet?: unknown; updatedAt?: string } | null>,
   ]);
   const dashboard = {
     updatedAt: walletPayload?.updatedAt ?? businessPayload?.updatedAt ?? new Date().toISOString(),
