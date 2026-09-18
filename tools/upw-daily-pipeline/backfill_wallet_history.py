@@ -12,9 +12,6 @@ from pathlib import Path
 import pandas as pd
 
 
-MASTER_SHEET = "代理商明细 "
-
-
 def normalise_columns(frame: pd.DataFrame) -> pd.DataFrame:
     frame = frame.copy()
     frame.columns = [str(column).strip() for column in frame.columns]
@@ -77,54 +74,60 @@ def card_kind(value: object, config: dict) -> str | None:
     return None
 
 
-def load_mapping(path: Path) -> pd.DataFrame:
-    frame = normalise_columns(pd.read_excel(path, sheet_name=MASTER_SHEET, dtype=str))
-    require_columns(frame, ["总代UID", "商务", "代理商"], f"{path.name} 的 {MASTER_SHEET}")
-    frame = frame[["总代UID", "商务", "代理商"]].copy()
-    frame.columns = ["master_uid", "bd", "agent"]
+def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+    """Read the single editable UID relationship and monthly-target workbook.
+
+    A configured master UID matches the relationship export's ``总代UID``.
+    A configured parent UID matches its ``上一级UID``. Master UID wins if a user
+    matches both. Only names in the workbook's ``BD`` list may be shown as a BD;
+    other internal staff are aggregated as ``UPay``.
+    """
+    frame = normalise_columns(pd.read_excel(path, dtype=str))
+    require_columns(frame, ["总代UID", "上一级UID", "商务", "代理商", "月份", "目标", "BD"], path.name)
     for column in frame:
         frame[column] = as_text(frame[column])
-    frame = frame[(frame.master_uid != "") & (frame.bd != "") & (frame.agent != "")]
-    if frame.master_uid.duplicated().any():
-        duplicates = ", ".join(frame.loc[frame.master_uid.duplicated(keep=False), "master_uid"].drop_duplicates().head(8))
-        raise ValueError(f"代理商明细中有重复总代UID：{duplicates}")
-    return frame
 
+    allowed_bds = [name for name in frame["BD"].tolist() if name and name.lower() != "bd"]
+    if not allowed_bds:
+        raise ValueError(f"{path.name} 的 BD 列至少需要填写一个允许展示的 BD。")
+    allowed_by_lower = {name.lower(): name for name in allowed_bds}
 
-def load_monthly_targets(path: Path) -> pd.DataFrame:
-    """Read the manually managed monthly BD targets from the legacy workbook.
+    mapping = frame[["总代UID", "上一级UID", "商务", "代理商"]].copy()
+    mapping.columns = ["master_uid", "parent_uid", "raw_bd", "agent"]
+    mapping = mapping[(mapping.master_uid != "") | (mapping.parent_uid != "")].copy()
+    mapping["is_internal"] = ~mapping.raw_bd.str.lower().isin(allowed_by_lower)
+    # Targets and top-level contribution have one catch-all bucket: Others.
+    # In agent-level detail, prefixing the configured agent with UPay preserves
+    # the agent relationship while hiding the internal employee's real name.
+    mapping["bd"] = mapping.raw_bd.str.lower().map(allowed_by_lower).fillna("Others")
+    mapping["agent"] = mapping.agent.replace("", "Unassigned")
+    mapping.loc[mapping.is_internal & (mapping.agent != "Unassigned"), "agent"] = (
+        "UPay · " + mapping.loc[mapping.is_internal & (mapping.agent != "Unassigned"), "agent"]
+    )
+    for key, label in (("master_uid", "总代UID"), ("parent_uid", "上一级UID")):
+        configured = mapping[mapping[key] != ""]
+        if configured[key].duplicated().any():
+            duplicates = ", ".join(configured.loc[configured[key].duplicated(keep=False), key].drop_duplicates().head(8))
+            raise ValueError(f"配置表中有重复{label}：{duplicates}")
 
-    Targets do not exist in the backend exports, so they remain a business input.
-    Keeping them in the existing summary sheets avoids inventing a second target
-    list and lets the dashboard follow the same values the team already uses.
-    """
-    workbook = pd.ExcelFile(path)
-    rows: list[dict[str, object]] = []
-    for month in range(1, 10):
-        candidates = ([f"汇总{month}"] if month != 3 else ["汇总33", "汇总3"]) + [f"UW maintainer汇总{month}"]
-        sheet = next((name for name in candidates if name in workbook.sheet_names), None)
-        if not sheet:
-            continue
-        values = pd.read_excel(path, sheet_name=sheet, header=None, dtype=object, keep_default_na=False)
-        header = next((index for index, row in values.iterrows() if str(row.iloc[0]).strip().lower() == "maintainer" and str(row.iloc[1]).strip().lower() == "target"), None)
-        if header is None:
-            continue
-        for _, row in values.iloc[header + 1:].iterrows():
-            name = str(row.iloc[0]).strip()
-            if not name:
-                break
-            if name.lower() == "total":
-                break
-            target = parse_amount(row.iloc[1])
-            if name and target >= 0:
-                rows.append({"month": f"2026-{month:02d}", "bd": name, "target": round(target, 2)})
-        if rows:
-            # Each month has exactly one source sheet. Do not fall through to a
-            # legacy duplicate if this sheet already supplied its targets.
-            rows_for_month = [row for row in rows if row["month"] == f"2026-{month:02d}"]
-            if rows_for_month:
-                continue
-    return pd.DataFrame(rows, columns=["month", "bd", "target"])
+    monthly_totals = frame[["月份", "目标"]].copy()
+    monthly_totals.columns = ["month", "total_target"]
+    monthly_totals = monthly_totals[monthly_totals.month.str.fullmatch(r"\d{6}", na=False)].copy()
+    if monthly_totals.month.duplicated().any():
+        duplicates = ", ".join(monthly_totals.loc[monthly_totals.month.duplicated(keep=False), "month"].drop_duplicates())
+        raise ValueError(f"配置表中有重复月份目标：{duplicates}")
+    recipients = allowed_bds + ["Others"]
+    target_rows: list[dict[str, object]] = []
+    for _, row in monthly_totals.iterrows():
+        month = f"{row.month[:4]}-{row.month[4:]}"
+        total = round(parse_amount(row.total_target), 2)
+        share = round(total / len(recipients), 2)
+        for bd in recipients:
+            # Assign the two-decimal rounding remainder to Others so displayed
+            # targets always reconcile exactly to the configured monthly total.
+            amount = round(total - share * (len(recipients) - 1), 2) if bd == "Others" else share
+            target_rows.append({"month": month, "bd": bd, "target": amount})
+    return mapping, pd.DataFrame(target_rows, columns=["month", "bd", "target"]), allowed_bds
 
 
 def column_names(path: Path) -> set[str]:
@@ -168,25 +171,30 @@ def apply_range(frame: pd.DataFrame, date_column: str, start: str | None, end: s
     return output
 
 
-def create_backfill(input_dir: Path, mapping_book: Path, output_dir: Path, config: dict, start: str | None, end: str | None) -> Path:
+def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path, config: dict, start: str | None, end: str | None) -> Path:
     relation_path, cards_path, transaction_paths = source_files(input_dir)
-    mapping = load_mapping(mapping_book)
-    monthly_targets = load_monthly_targets(mapping_book)
+    mapping, monthly_targets, allowed_bds = load_configuration(configuration_book)
 
     relation = read_table(relation_path)
-    require_columns(relation, ["用户UID", "总代UID", "注册时间"], relation_path.name)
-    relation = relation[["用户UID", "总代UID", "注册时间"]].copy()
-    relation.columns = ["user_uid", "master_uid", "registered_at"]
+    require_columns(relation, ["用户UID", "总代UID", "上一级UID", "注册时间"], relation_path.name)
+    relation = relation[["用户UID", "总代UID", "上一级UID", "注册时间"]].copy()
+    relation.columns = ["user_uid", "master_uid", "parent_uid", "registered_at"]
     relation.user_uid = as_text(relation.user_uid)
     relation.master_uid = as_text(relation.master_uid)
+    relation.parent_uid = as_text(relation.parent_uid)
     relation.registered_at = parse_datetime(relation.registered_at)
     relation = relation.dropna(subset=["registered_at"]).drop_duplicates("user_uid", keep="last")
-    population = relation.merge(mapping, on="master_uid", how="left")
+    master_mapping = mapping[mapping.master_uid != ""][["master_uid", "bd", "agent"]].rename(columns={"bd": "master_bd", "agent": "master_agent"})
+    parent_mapping = mapping[mapping.parent_uid != ""][["parent_uid", "bd", "agent"]].rename(columns={"bd": "parent_bd", "agent": "parent_agent"})
+    population = relation.merge(master_mapping, on="master_uid", how="left")
+    population = population.merge(parent_mapping, on="parent_uid", how="left")
+    population["bd"] = population.master_bd.combine_first(population.parent_bd)
+    population["agent"] = population.master_agent.combine_first(population.parent_agent)
     mapped_users = population[population.bd.notna()].copy()
     # Keep every user that can be related to a master UID. Transactions with an
     # unknown master (or no relation row) are deliberately retained later as
     # Others / Unassigned instead of silently disappearing from total volume.
-    attributed_users = population[["user_uid", "master_uid", "bd", "agent"]].drop_duplicates("user_uid", keep="last").copy()
+    attributed_users = population[["user_uid", "master_uid", "parent_uid", "bd", "agent"]].drop_duplicates("user_uid", keep="last").copy()
 
     cards = read_table(cards_path)
     require_columns(cards, ["用户UID", "用户卡ID", "站点卡ID", "创建时间"], cards_path.name)
@@ -280,7 +288,8 @@ def create_backfill(input_dir: Path, mapping_book: Path, output_dir: Path, confi
     registered_user_ids = set(population.user_uid)
     active_user_ids = raw_transaction_user_ids | raw_card_user_ids | registered_user_ids
     unmapped = population[population.bd.isna() & population.user_uid.isin(active_user_ids)].copy()
-    unmapped_summary = unmapped.groupby("master_uid", as_index=False).agg(
+    unmapped["reference_uid"] = unmapped.master_uid.where(unmapped.master_uid != "", unmapped.parent_uid)
+    unmapped_summary = unmapped.groupby("reference_uid", as_index=False).agg(
         affected_users=("user_uid", "nunique"),
         first_registration=("registered_at", "min"),
         last_registration=("registered_at", "max"),
@@ -302,7 +311,8 @@ def create_backfill(input_dir: Path, mapping_book: Path, output_dir: Path, confi
         "relationship_file": relation_path.name,
         "cards_file": cards_path.name,
         "transaction_files": [path.name for path in transaction_paths],
-        "mapping_workbook": str(mapping_book),
+        "configuration_workbook": str(configuration_book),
+        "allowed_bds": allowed_bds,
         "transaction_date_column": config["transaction_date_column"],
         "included_transaction_types": config["included_transaction_types"],
         "start": start,
@@ -316,10 +326,10 @@ def create_backfill(input_dir: Path, mapping_book: Path, output_dir: Path, confi
 
 def main() -> int:
     script_dir = Path(__file__).resolve().parent
-    default_mapping = script_dir.parent / "UW每日数据.xlsx"
+    default_mapping = script_dir.parent / "total data" / "代理关系及月份目标.xlsx"
     parser = argparse.ArgumentParser(description="Backfill UPay Wallet daily metrics from historical backend exports.")
     parser.add_argument("--input-dir", type=Path, required=True)
-    parser.add_argument("--mapping-workbook", type=Path, default=default_mapping)
+    parser.add_argument("--mapping-workbook", type=Path, default=default_mapping, help="代理关系及月份目标.xlsx")
     parser.add_argument("--output-dir", type=Path, default=script_dir / "outputs" / "history")
     parser.add_argument("--from", dest="start", help="Inclusive date, YYYY-MM-DD")
     parser.add_argument("--to", dest="end", help="Inclusive date, YYYY-MM-DD")
