@@ -87,9 +87,17 @@
 
 ## 目标（Target）目前如何处理？
 
-目标不是后台原始交易数据，因此目前尚未放进上述自动程序。日常跑数不需要改目标。
+目标不是后台原始交易数据。程序会读取 `UW每日数据.xlsx` 各月份的汇总页（例如 9 月的 `汇总9`）中的 BD 目标，并在每次同步时更新网站。
 
-后续会单独建立可编辑目标表；届时你只维护 `月份 / 平台 / BD / 代理商 / 月目标`，网站会自行算完成率与缺口。
+日常没有调整目标时，无需处理。要调整某月目标时，只改对应汇总页的目标数值，然后重新双击 `同步到GoogleSheet.command`。
+
+## 想看程序怎么计算？
+
+GitHub 中的 [`tools/upw-daily-pipeline`](../tools/upw-daily-pipeline/) 包含 Python 源码和逐段中文说明。重点文件是：
+
+- `backfill_wallet_history.py`：读取原始导出、关联 UID、计算每日数据。
+- `sync_wallet_dashboard.py`：把计算结果和目标同步到 Google Sheet。
+- `README_CN.md`：输入、输出、计算口径与日常运行方式。
 
 ## 如果程序报错
 

@@ -1,0 +1,8 @@
+{
+  "successful_transaction_status": ["已完成"],
+  "included_transaction_types": ["消费", "ATM 取现", "退款"],
+  "virtual_card_keywords": ["虚拟"],
+  "physical_card_keywords": ["实体"],
+  "transaction_date_column": "交易提交时间"
+}
+

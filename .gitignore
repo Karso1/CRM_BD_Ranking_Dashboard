@@ -44,3 +44,6 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+# Local Wallet pipeline outputs and private Google Sheet settings.
+/tools/upw-daily-pipeline/outputs/
+/tools/upw-daily-pipeline/sync.local.json

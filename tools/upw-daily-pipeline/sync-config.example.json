@@ -1,0 +1,5 @@
+{
+  "endpoint": "https://script.google.com/macros/s/DEPLOYMENT_ID/exec",
+  "key": "Paste your WALLET_SYNC_KEY here"
+}
+
