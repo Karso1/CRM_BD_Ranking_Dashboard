@@ -96,14 +96,11 @@ def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str
     mapping.columns = ["master_uid", "parent_uid", "raw_bd", "agent"]
     mapping = mapping[(mapping.master_uid != "") | (mapping.parent_uid != "")].copy()
     mapping["is_internal"] = ~mapping.raw_bd.str.lower().isin(allowed_by_lower)
-    # Targets and top-level contribution have one catch-all bucket: Others.
-    # In agent-level detail, prefixing the configured agent with UPay preserves
-    # the agent relationship while hiding the internal employee's real name.
+    # Targets and dashboard contribution have one catch-all bucket: Others.
+    # The configured employee name is never shown outside the public BD list.
     mapping["bd"] = mapping.raw_bd.str.lower().map(allowed_by_lower).fillna("Others")
     mapping["agent"] = mapping.agent.replace("", "Unassigned")
-    mapping.loc[mapping.is_internal & (mapping.agent != "Unassigned"), "agent"] = (
-        "UPay · " + mapping.loc[mapping.is_internal & (mapping.agent != "Unassigned"), "agent"]
-    )
+    mapping.loc[mapping.is_internal & (mapping.agent.str.lower() == mapping.raw_bd.str.lower()), "agent"] = "Others"
     for key, label in (("master_uid", "总代UID"), ("parent_uid", "上一级UID")):
         configured = mapping[mapping[key] != ""]
         if configured[key].duplicated().any():

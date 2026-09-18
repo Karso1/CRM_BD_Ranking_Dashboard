@@ -43,10 +43,10 @@ export default function Home(){
  const publicWalletBds=new Set(["victor","katrina","ruslan","mike","patrick","richard","others"]);
  const displayedOwner=(rawOwner:string,name="")=>{
   if(!isWallet)return rawOwner;
-  // Old snapshots can still contain an internal employee as Owner BD. New
-  // pipeline rows are grouped under Others and marked "UPay · agent".
-  if(name.startsWith("UPay · "))return "UPay";
-  return publicWalletBds.has(rawOwner.toLowerCase())?rawOwner:"UPay";
+  // Old snapshots may still contain an internal employee as Owner BD. The
+  // public dashboard must expose only configured BD names or the Others group.
+  if(name.startsWith("UPay · "))return "Others";
+  return publicWalletBds.has(rawOwner.toLowerCase())?rawOwner:"Others";
  };
  const updated=useMemo(()=>{const date=new Date(updatedAt);return Number.isNaN(date.getTime())?updatedAt:date.toLocaleString(lang==="zh"?"zh-CN":"en-GB",{hour12:false})},[updatedAt,lang]);
  const performanceLabel=isWallet?(lang==="zh"?"消费金额":"Consumption"):t.recharge;
@@ -64,7 +64,7 @@ export default function Home(){
  const overall=displayedOverall.filter(x=>owner==="全部BD"||x.name.toLowerCase()===owner.toLowerCase());
  const ownerMatches=(rawOwner:string,name="")=>owner==="全部BD"||displayedOwner(rawOwner,name).toLowerCase()===owner.toLowerCase();
  const source=view==="总体"?overall.map(x=>({...x,owner:x.name,consumption:0})):details.filter(x=>x.type===view&&ownerMatches(x.owner,x.name));
- const rows=[...source].filter(x=>`${x.name} ${x.owner}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>metric==="完成率"?b.recharge/(("target" in b&&b.target)||1)-a.recharge/(("target" in a&&a.target)||1):metric==="当日充值"?b.yesterday-a.yesterday:b.recharge-a.recharge);
+ const rows=[...source].filter(x=>`${x.name} ${displayedOwner(x.owner,x.name)}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>metric==="完成率"?b.recharge/(("target" in b&&b.target)||1)-a.recharge/(("target" in a&&a.target)||1):metric==="当日充值"?b.yesterday-a.yesterday:b.recharge-a.recharge);
  const target=overall.reduce((s,x)=>s+x.target,0),recharge=overall.reduce((s,x)=>s+x.recharge,0),cards=overall.reduce((s,x)=>s+x.cards,0),yesterday=overall.reduce((s,x)=>s+x.yesterday,0),elapsed=mode==="range"?countDays(start,end):countDays(period.start,end),totalDays=mode==="range"?countDays(start,end):new Date(+period.id.slice(0,4),+period.id.slice(5),0).getDate();
  const totals={target,recharge,cards,yesterday,rate:target?recharge/target:0,dailyNeed:Math.max(target-recharge,0)/Math.max(totalDays-elapsed,1),elapsed,totalDays};
  const daily=reports.map(r=>({date:r.date.slice(5).replace("-","/"),amount:r.details.filter(x=>ownerMatches(x.owner,x.name)).reduce((s,x)=>s+x.recharge,0)}));
