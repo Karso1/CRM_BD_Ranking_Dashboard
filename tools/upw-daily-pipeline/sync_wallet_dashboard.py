@@ -18,6 +18,7 @@ HEADERS = [
     "open_card_physical", "consumption", "transaction_count",
 ]
 TARGET_HEADERS = ["month", "bd", "target"]
+DEFAULT_DASHBOARD_REFRESH_URL = "https://upay-bd-ranking.karsol.workers.dev/api/dashboard?platform=wallet&refresh=1"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -69,6 +70,7 @@ def main() -> int:
     parser.add_argument("--csv", type=Path, default=script_dir / "outputs" / "history" / "wallet_daily_metrics.csv")
     parser.add_argument("--targets", type=Path, default=script_dir / "outputs" / "history" / "wallet_monthly_targets.csv")
     parser.add_argument("--settings", type=Path, default=script_dir / "sync.local.json")
+    parser.add_argument("--dashboard-url", default=DEFAULT_DASHBOARD_REFRESH_URL, help="Website cache refresh URL")
     args = parser.parse_args()
     try:
         settings = json.loads(args.settings.read_text(encoding="utf-8"))
@@ -99,7 +101,17 @@ def main() -> int:
         periods = verification.get("wallet", {}).get("periods", [])
         if not periods:
             raise ValueError(verification.get("error", "Google Sheet 写入后未能验证数据。"))
-        print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份。")
+        # Warm the Worker cache now, while this local run is still in progress.
+        # Visitors then receive the newly synced Wallet data immediately instead
+        # of waiting for the first browser request to rebuild it from Sheets.
+        try:
+            with urllib.request.urlopen(args.dashboard_url, timeout=120) as response:
+                dashboard = json.loads(response.read().decode("utf-8"))
+            if not dashboard.get("wallet", {}).get("periods"):
+                raise ValueError("网站没有确认 Wallet 缓存。")
+            print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存已更新。")
+        except (OSError, ValueError, urllib.error.URLError) as error:
+            print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存将在首次访问时更新（{error}）。")
         return 0
     except (OSError, ValueError, KeyError, urllib.error.URLError) as error:
         print(f"同步失败：{error}", file=sys.stderr)

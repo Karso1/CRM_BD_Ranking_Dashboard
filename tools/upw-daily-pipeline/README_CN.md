@@ -39,9 +39,9 @@ python3 -m pip install -r requirements.txt
 
 ## 每日运行、同步 Google Sheet 与网站
 
-日常只需双击 `同步到GoogleSheet.command`。不要关闭终端，看到“完成”后再刷新网站。
+日常只需双击 `同步到GoogleSheet.command`。不要关闭终端，看到“网站缓存已更新”后直接打开网站即可，不需要手动刷新浏览器。
 
-它会先全量重算 `total data`，再把 `wallet_daily_metrics.csv` 和 `wallet_monthly_targets.csv` 写到 Google Sheet 的专用工作表。网站只读取这些专用表，不会修改你原有的月度汇总或公式工作表。
+它会先全量重算 `total data`，再把 `wallet_daily_metrics.csv` 和 `wallet_monthly_targets.csv` 写到 Google Sheet 的专用工作表，并在最后预热网站缓存。网站只读取这些专用表，不会修改你原有的月度汇总或公式工作表。
 
 不要手动编辑 `outputs/history` 或 `DashboardWalletDaily`；两者都会在下次运行时被覆盖。不要删除 `sync.local.json`，它是本机私密同步设置。
 
