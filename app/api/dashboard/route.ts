@@ -5,15 +5,26 @@ export async function GET(request: Request) {
   const businessSourceUrl = env.DASHBOARD_SOURCE_URL;
   const walletSourceUrl = env.WALLET_SOURCE_URL;
   const platform = new URL(request.url).searchParams.get("platform");
+  const forceRefresh = new URL(request.url).searchParams.get("refresh") === "1";
   const read = async (url: string | undefined, timeout: number) => {
     if (!url) return null;
+    const cache = caches.default;
+    const cacheKey = new Request(url, { method: "GET" });
+    if (!forceRefresh) {
+      const cached = await cache.match(cacheKey);
+      if (cached) return cached.json();
+    }
     try {
       const upstream = await fetch(url, {
         headers: { Accept: "application/json" },
-        cf: { cacheTtl: 0, cacheEverything: false },
         signal: AbortSignal.timeout(timeout),
       });
-      return upstream.ok ? await upstream.json() : null;
+      if (!upstream.ok) return null;
+      const payload = await upstream.json();
+      await cache.put(cacheKey, Response.json(payload, {
+        headers: { "Cache-Control": "public, max-age=600" },
+      }));
+      return payload;
     } catch {
       return null;
     }
