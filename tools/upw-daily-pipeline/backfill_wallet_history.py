@@ -96,11 +96,11 @@ def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str
     mapping.columns = ["master_uid", "parent_uid", "raw_bd", "agent"]
     mapping = mapping[(mapping.master_uid != "") | (mapping.parent_uid != "")].copy()
     mapping["is_internal"] = ~mapping.raw_bd.str.lower().isin(allowed_by_lower)
-    # Targets and dashboard contribution have one catch-all bucket: Others.
+    # Targets and dashboard contribution have one catch-all bucket: UPay.
     # The configured employee name is never shown outside the public BD list.
-    mapping["bd"] = mapping.raw_bd.str.lower().map(allowed_by_lower).fillna("Others")
+    mapping["bd"] = mapping.raw_bd.str.lower().map(allowed_by_lower).fillna("UPay")
     mapping["agent"] = mapping.agent.replace("", "Unassigned")
-    mapping.loc[mapping.is_internal & (mapping.agent.str.lower() == mapping.raw_bd.str.lower()), "agent"] = "Others"
+    mapping.loc[mapping.is_internal & (mapping.agent.str.lower() == mapping.raw_bd.str.lower()), "agent"] = "UPay"
     for key, label in (("master_uid", "总代UID"), ("parent_uid", "上一级UID")):
         configured = mapping[mapping[key] != ""]
         if configured[key].duplicated().any():
@@ -113,16 +113,16 @@ def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str
     if monthly_totals.month.duplicated().any():
         duplicates = ", ".join(monthly_totals.loc[monthly_totals.month.duplicated(keep=False), "month"].drop_duplicates())
         raise ValueError(f"配置表中有重复月份目标：{duplicates}")
-    recipients = allowed_bds + ["Others"]
+    recipients = allowed_bds + ["UPay"]
     target_rows: list[dict[str, object]] = []
     for _, row in monthly_totals.iterrows():
         month = f"{row.month[:4]}-{row.month[4:]}"
         total = round(parse_amount(row.total_target), 2)
         share = round(total / len(recipients), 2)
         for bd in recipients:
-            # Assign the two-decimal rounding remainder to Others so displayed
+            # Assign the two-decimal rounding remainder to UPay so displayed
             # targets always reconcile exactly to the configured monthly total.
-            amount = round(total - share * (len(recipients) - 1), 2) if bd == "Others" else share
+            amount = round(total - share * (len(recipients) - 1), 2) if bd == "UPay" else share
             target_rows.append({"month": month, "bd": bd, "target": amount})
     return mapping, pd.DataFrame(target_rows, columns=["month", "bd", "target"]), allowed_bds
 
@@ -190,7 +190,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     mapped_users = population[population.bd.notna()].copy()
     # Keep every user that can be related to a master UID. Transactions with an
     # unknown master (or no relation row) are deliberately retained later as
-    # Others / Unassigned instead of silently disappearing from total volume.
+    # UPay instead of silently disappearing from total volume.
     attributed_users = population[["user_uid", "master_uid", "parent_uid", "bd", "agent"]].drop_duplicates("user_uid", keep="last").copy()
 
     cards = read_table(cards_path)
@@ -203,7 +203,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     cards["card_kind"] = cards.site_card.map(lambda value: card_kind(value, config))
     raw_card_user_ids = set(cards.user_uid[cards.created_at.notna() & (cards.card_id != "")])
     cards = cards.merge(attributed_users[["user_uid", "bd", "agent"]], on="user_uid", how="left")
-    cards["bd"] = cards["bd"].fillna("Others")
+    cards["bd"] = cards["bd"].fillna("UPay")
     cards["agent"] = cards["agent"].fillna("Unassigned")
 
     transaction_frames: list[pd.DataFrame] = []
@@ -236,7 +236,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     transactions["flow_amount"] = transactions.card_flow.map(parse_amount)
     transactions["net_consumption"] = -transactions.flow_amount
     transactions = transactions.merge(attributed_users[["user_uid", "bd", "agent"]], on="user_uid", how="left")
-    transactions["bd"] = transactions["bd"].fillna("Others")
+    transactions["bd"] = transactions["bd"].fillna("UPay")
     transactions["agent"] = transactions["agent"].fillna("Unassigned")
 
     registrations = mapped_users.assign(date=mapped_users.registered_at.dt.normalize())
