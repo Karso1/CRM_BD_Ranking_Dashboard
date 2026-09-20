@@ -105,7 +105,14 @@ def main() -> int:
         # Visitors then receive the newly synced Wallet data immediately instead
         # of waiting for the first browser request to rebuild it from Sheets.
         try:
-            with urllib.request.urlopen(args.dashboard_url, timeout=120) as response:
+            dashboard_request = urllib.request.Request(
+                args.dashboard_url,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "UPay-Wallet-Sync/1.0",
+                },
+            )
+            with urllib.request.urlopen(dashboard_request, timeout=120) as response:
                 dashboard = json.loads(response.read().decode("utf-8"))
             if not dashboard.get("wallet", {}).get("periods"):
                 raise ValueError("网站没有确认 Wallet 缓存。")
