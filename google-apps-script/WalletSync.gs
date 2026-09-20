@@ -83,12 +83,16 @@ function monthKey(value) {
   return date ? date.slice(0, 7) : '';
 }
 function item(name, owner) {
-  return { name: name, owner: owner, type: '代理商', recharge: 0, consumption: 0, cards: 0, yesterday: 0 };
+  return { name: name, owner: owner, type: '代理商', recharge: 0, consumption: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
 }
 function addMetric(target, source) {
+  const virtualCards = number(source.open_card_virtual);
+  const physicalCards = number(source.open_card_physical);
   target.recharge += number(source.consumption);
   target.consumption += number(source.consumption);
-  target.cards += number(source.open_card_virtual) + number(source.open_card_physical);
+  target.cardsVirtual += virtualCards;
+  target.cardsPhysical += physicalCards;
+  target.cards += virtualCards + physicalCards;
 }
 function buildWallet() {
   const periodMap = {};
@@ -127,10 +131,14 @@ function buildPeriod(month, data) {
       detailMap[key].recharge += row.recharge;
       detailMap[key].consumption += row.consumption;
       detailMap[key].cards += row.cards;
+      detailMap[key].cardsVirtual += row.cardsVirtual;
+      detailMap[key].cardsPhysical += row.cardsPhysical;
       const ownerKey = row.owner.toLowerCase();
-      if (!overallMap[ownerKey]) overallMap[ownerKey] = { name: row.owner, target: 0, recharge: 0, cards: 0, yesterday: 0 };
+      if (!overallMap[ownerKey]) overallMap[ownerKey] = { name: row.owner, target: 0, recharge: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
       overallMap[ownerKey].recharge += row.recharge;
       overallMap[ownerKey].cards += row.cards;
+      overallMap[ownerKey].cardsVirtual += row.cardsVirtual;
+      overallMap[ownerKey].cardsPhysical += row.cardsPhysical;
     });
     return { date: date, details: dailyDetails };
   });
@@ -138,7 +146,7 @@ function buildPeriod(month, data) {
   // toward the monthly target and appear with zero performance.
   Object.keys(data.targets).forEach(key => {
     const target = data.targets[key];
-    if (!overallMap[key]) overallMap[key] = { name: target.name, target: 0, recharge: 0, cards: 0, yesterday: 0 };
+    if (!overallMap[key]) overallMap[key] = { name: target.name, target: 0, recharge: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
     overallMap[key].name = target.name;
     overallMap[key].target += target.target;
   });
