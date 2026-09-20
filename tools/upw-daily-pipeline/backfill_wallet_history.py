@@ -99,7 +99,7 @@ def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str
     # Targets and dashboard contribution have one catch-all bucket: UPay.
     # The configured employee name is never shown outside the public BD list.
     mapping["bd"] = mapping.raw_bd.str.lower().map(allowed_by_lower).fillna("UPay")
-    mapping["agent"] = mapping.agent.replace("", "Unassigned")
+    mapping["agent"] = mapping.agent.replace("", "UPay")
     mapping.loc[mapping.is_internal & (mapping.agent.str.lower() == mapping.raw_bd.str.lower()), "agent"] = "UPay"
     for key, label in (("master_uid", "总代UID"), ("parent_uid", "上一级UID")):
         configured = mapping[mapping[key] != ""]
@@ -204,7 +204,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     raw_card_user_ids = set(cards.user_uid[cards.created_at.notna() & (cards.card_id != "")])
     cards = cards.merge(attributed_users[["user_uid", "bd", "agent"]], on="user_uid", how="left")
     cards["bd"] = cards["bd"].fillna("UPay")
-    cards["agent"] = cards["agent"].fillna("Unassigned")
+    cards["agent"] = cards["agent"].fillna("UPay")
 
     transaction_frames: list[pd.DataFrame] = []
     coverage: list[dict[str, object]] = []
@@ -237,7 +237,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     transactions["net_consumption"] = -transactions.flow_amount
     transactions = transactions.merge(attributed_users[["user_uid", "bd", "agent"]], on="user_uid", how="left")
     transactions["bd"] = transactions["bd"].fillna("UPay")
-    transactions["agent"] = transactions["agent"].fillna("Unassigned")
+    transactions["agent"] = transactions["agent"].fillna("UPay")
 
     registrations = mapped_users.assign(date=mapped_users.registered_at.dt.normalize())
     registrations = apply_range(registrations, "date", start, end)
@@ -350,4 +350,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

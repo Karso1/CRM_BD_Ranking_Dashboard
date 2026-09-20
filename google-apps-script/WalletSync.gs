@@ -100,7 +100,10 @@ function buildWallet() {
     const date = isoDate(row.date);
     const month = monthKey(date);
     const owner = clean(row.bd) || 'UPay';
-    const name = clean(row.agent) || owner;
+    const rawAgent = clean(row.agent);
+    // Unassigned is an attribution fallback, not a separate public agent.
+    // Combine it with explicit UPay rows in the agent leaderboard.
+    const name = rawAgent.toLowerCase() === 'unassigned' ? 'UPay' : (rawAgent || owner);
     if (!date || !month) return;
     if (!periodMap[month]) periodMap[month] = { dates: {}, targets: {} };
     if (!periodMap[month].dates[date]) periodMap[month].dates[date] = {};
