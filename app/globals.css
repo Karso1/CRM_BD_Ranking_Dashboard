@@ -88,3 +88,53 @@
   .filter-actions{display:grid;grid-template-columns:auto minmax(0,1fr);width:100%}
   .filter-actions .search-box{min-width:0}
 }
+
+/* Refined filter row, matching dropdowns, and a branded calendar picker. */
+.control-row{align-items:end;min-height:92px}
+.filter-controls{align-items:end;gap:12px}
+.filter-field{flex:0 1 auto;min-width:136px;gap:7px!important}
+.filter-field>span{display:block;line-height:1.2}
+.filter-field:first-child{min-width:148px}
+.filter-field:nth-child(2){min-width:188px}
+.dashboard-select{width:100%;height:40px!important;min-width:0!important;padding:0 12px!important;border:1px solid #2a4546!important;border-radius:8px!important;background:#0b1b1e!important;color:#dcebe8!important;font-size:12px!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important;transition:border-color .16s,background .16s,box-shadow .16s}
+.dashboard-select:hover,.dashboard-date-trigger:hover{border-color:#477a6d!important;background:#0e2223!important}
+.dashboard-select:focus-visible,.dashboard-date-trigger:focus-visible{outline:none!important;border-color:#58d2a5!important;box-shadow:0 0 0 3px rgba(88,210,165,.14)!important}
+.dashboard-select-menu{z-index:80!important;max-height:min(360px,65vh)!important;min-width:var(--radix-select-trigger-width)!important;padding:5px!important;border:1px solid #294344!important;border-radius:10px!important;background:#0d1d20!important;color:#dcebe8!important;box-shadow:0 18px 48px rgba(0,0,0,.42)!important}
+.dashboard-select-option{min-height:34px!important;padding:7px 30px 7px 10px!important;border-radius:6px!important;color:#c3d6d1!important;font-size:12px!important;cursor:pointer!important}
+.dashboard-select-option[data-highlighted]{background:#14332f!important;color:#e7fff6!important}
+.dashboard-select-option[data-state=checked]{color:#78e0b8!important;font-weight:650}
+.dashboard-date-trigger{width:100%;height:40px;display:flex;align-items:center;justify-content:space-between;gap:9px;padding:0 11px;border:1px solid #2a4546;border-radius:8px;background:#0b1b1e;color:#dcebe8;font-size:12px;white-space:nowrap;transition:border-color .16s,background .16s,box-shadow .16s}
+.dashboard-date-trigger>svg:first-child{flex:none;color:#7ea69b}
+.dashboard-date-trigger>svg:last-child{flex:none;color:#708c87}
+.dashboard-calendar-popover{z-index:90!important;width:auto!important;padding:8px!important;overflow:hidden;border:1px solid #294344!important;border-radius:12px!important;background:#0d1d20!important;color:#e4f1ed!important;box-shadow:0 20px 50px rgba(0,0,0,.46)!important}
+.dashboard-calendar{--background:#0d1d20;--foreground:#e4f1ed;--muted:#819995;--accent:#163d35;--accent-foreground:#a2f1d2;--border:#223c3d;color:#e4f1ed!important}
+.dashboard-calendar button{color:#c7d9d5}
+.dashboard-calendar button:hover{background:#16332f!important;color:#eafff6!important}
+.dashboard-calendar button[aria-selected=true]{background:#58d2a5!important;color:#062017!important;font-weight:700}
+.dashboard-calendar button:disabled{color:#405755!important;opacity:.55}
+.filter-utilities{align-self:end;min-width:0;gap:0}
+.filter-utilities .filter-actions{align-items:center}
+.filter-utilities .search-box{height:40px;border-radius:8px}
+.reset-button{height:40px;border-radius:8px}
+.date-range-fields{align-items:end;gap:8px}
+.date-range-fields .filter-field{min-width:144px}
+.date-divider{height:40px}
+@media(max-width:1280px){
+  .filter-utilities{width:auto;grid-template-columns:none;justify-items:stretch}
+  .filter-utilities .search-box{width:230px;min-width:200px}
+}
+@media(max-width:1020px){
+  .control-row{display:grid;grid-template-columns:1fr;gap:14px}
+  .filter-controls{width:100%}
+  .filter-utilities{width:100%;justify-items:stretch}
+  .filter-utilities .filter-actions{width:100%;justify-content:flex-end}
+  .filter-utilities .search-box{width:min(360px,100%)}
+}
+@media(max-width:620px){
+  .control-row{gap:12px;padding:14px}
+  .filter-controls{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+  .filter-field,.filter-field:first-child,.filter-field:nth-child(2){min-width:0;width:100%}
+  .date-range-fields .filter-field{min-width:0}
+  .filter-utilities .filter-actions{display:grid;grid-template-columns:auto minmax(0,1fr)}
+  .filter-utilities .search-box{width:100%;min-width:0}
+}
