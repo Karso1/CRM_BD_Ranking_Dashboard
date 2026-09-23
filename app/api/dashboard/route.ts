@@ -32,14 +32,14 @@ export async function GET(request: Request) {
 
   // A selected platform is fetched on its own. This matters for Wallet: a
   // slow UP Business Apps Script must never delay or hide Wallet updates.
-  const [businessPayload, walletPayload] = await Promise.all([
+  const [legacyBusinessPayload, syncPayload] = await Promise.all([
     platform === "wallet" ? null : read(businessSourceUrl, 12_000) as Promise<{ business?: unknown; updatedAt?: string } | null>,
-    platform === "business" ? null : read(walletSourceUrl, 55_000) as Promise<{ wallet?: unknown; updatedAt?: string } | null>,
+    read(walletSourceUrl, 55_000) as Promise<{ business?: unknown; wallet?: unknown; updatedAt?: string } | null>,
   ]);
   const dashboard = {
-    updatedAt: walletPayload?.updatedAt ?? businessPayload?.updatedAt ?? new Date().toISOString(),
-    ...(businessPayload?.business ? { business: businessPayload.business } : {}),
-    ...(walletPayload?.wallet ? { wallet: walletPayload.wallet } : {}),
+    updatedAt: syncPayload?.updatedAt ?? legacyBusinessPayload?.updatedAt ?? new Date().toISOString(),
+    ...((syncPayload?.business ?? legacyBusinessPayload?.business) ? { business: syncPayload?.business ?? legacyBusinessPayload?.business } : {}),
+    ...(syncPayload?.wallet ? { wallet: syncPayload.wallet } : {}),
   };
 
   if (!dashboard.business && !dashboard.wallet) {

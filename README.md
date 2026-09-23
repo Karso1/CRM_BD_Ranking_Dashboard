@@ -4,14 +4,23 @@
 
 这个项目展示两个平台的数据：
 
-- **UP Business**：沿用已有的 Google Sheet 数据源。
-- **UPay Wallet**：由本地程序读取后台原始导出，自动计算后同步到 Google Sheet，再由网站读取。
+- **UP Business**：由 UPB 本地程序读取开卡、手动开卡、充值和三渠道消费导出，自动计算后同步。
+- **UPay Wallet**：由 UPW 本地程序读取后台原始导出，自动计算后同步。
 
-> 日常更新 Wallet **不需要**改网页代码、上传 GitHub、重新部署 Cloudflare，也不需要手动做 VLOOKUP 或 SUMIFS。
+> 两个平台的日常更新都**不需要**改网页代码、上传 GitHub、重新部署 Cloudflare，也不需要手动做 VLOOKUP 或 SUMIFS。
 
 ## 今天要做什么？
 
-每天更新 UPay Wallet 时，按下面四步操作即可。
+### UP Business
+
+1. 将最新开卡、手动开卡、充值、Passto、Reap 和 StraitsX 文件放入 `UPB每日数据` 对应文件夹。
+2. 新代理、合作模式、BD 关系或月份目标只在 `BD代理关系目标/BD代理关系.xlsx` 更新。
+3. 双击 `UPB每日数据/upb-daily-pipeline/同步UPB到网站.command`。
+4. 等终端显示“全部完成”，打开看板并切换到 **UP Business**。
+
+完整说明见 [UP Business 每日运行手册](docs/BUSINESS_DAILY_WORKFLOW_CN.md)。
+
+### UPay Wallet
 
 1. 从后台下载最新原始文件，放入本机 `UPW每日数据/total data` 文件夹。
 2. 如果出现新总代 UID、上一级 UID 或归属变更，在 `UPW每日数据/total data/代理关系及月份目标.xlsx` 更新配置。
@@ -25,9 +34,9 @@
 ```text
 后台原始导出文件
         ↓
-本地 Wallet 计算程序
+本地 UPB / UPW 计算程序
         ↓
-Google Sheet：DashboardWalletDaily（程序专用页）
+Google Sheet：DashboardBusinessDaily / DashboardWalletDaily（程序专用页）
         ↓
 Cloudflare Worker（服务器端私密读取）
         ↓
@@ -40,10 +49,13 @@ Cloudflare Worker（服务器端私密读取）
 
 | 内容 | 是否手动改 | 什么时候改 |
 | --- | --- | --- |
+| `UPB每日数据` 各原始数据文件夹 | 是 | 每天下载最新 UPB 数据后 |
+| `BD代理关系目标/BD代理关系.xlsx` | 是 | UPB 新代理、模式、BD 或目标变化时 |
 | `total data` 的后台原始导出 | 是 | 每天下载最新数据后 |
 | `代理关系及月份目标.xlsx` 的总代 UID / 上一级 UID → BD → 代理商关系 | 是 | 新总代、新代理或归属调整时 |
 | `outputs/` 里的 CSV | 否 | 程序自动生成，会被覆盖 |
 | Google Sheet 的 `DashboardWalletDaily` 页 | 否 | 程序自动写入，会被覆盖 |
+| Google Sheet 的 `DashboardBusinessDaily` 页 | 否 | 程序自动写入，会被覆盖 |
 | `sync.local.json` | 否 | 本机私密连接配置，不可删除或上传 |
 | 网页代码、GitHub、Cloudflare 设置 | 否 | 日常更新无需操作 |
 

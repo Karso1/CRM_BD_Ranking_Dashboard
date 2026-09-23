@@ -1,0 +1,5 @@
+cache/
+outputs/
+sync.local.json
+__pycache__/
+*.pyc
