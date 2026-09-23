@@ -88,7 +88,7 @@ def main() -> int:
         )
         opener = urllib.request.build_opener(NoRedirect())
         try:
-            with opener.open(request, timeout=90) as response:
+            with opener.open(request, timeout=300) as response:
                 result = json.loads(response.read().decode("utf-8"))
             if not result.get("ok"):
                 raise ValueError(result.get("error", "Google Sheet 未确认写入。"))
@@ -96,29 +96,31 @@ def main() -> int:
             if error.code not in {301, 302, 303, 307, 308}:
                 raise
 
-        with urllib.request.urlopen(url, timeout=90) as response:
-            verification = json.loads(response.read().decode("utf-8"))
-        periods = verification.get("wallet", {}).get("periods", [])
+        # Refresh and verify the Worker cache once. The Worker performs the
+        # expensive Apps Script read and stores the result, so visitors receive
+        # this exact payload immediately instead of rebuilding it on page load.
+        dashboard_request = urllib.request.Request(
+            args.dashboard_url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "UPay-Wallet-Sync/1.0",
+            },
+        )
+        with urllib.request.urlopen(dashboard_request, timeout=360) as response:
+            dashboard = json.loads(response.read().decode("utf-8"))
+        periods = dashboard.get("wallet", {}).get("periods", [])
         if not periods:
-            raise ValueError(verification.get("error", "Google Sheet 写入后未能验证数据。"))
-        # Warm the Worker cache now, while this local run is still in progress.
-        # Visitors then receive the newly synced Wallet data immediately instead
-        # of waiting for the first browser request to rebuild it from Sheets.
-        try:
-            dashboard_request = urllib.request.Request(
-                args.dashboard_url,
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "UPay-Wallet-Sync/1.0",
-                },
-            )
-            with urllib.request.urlopen(dashboard_request, timeout=120) as response:
-                dashboard = json.loads(response.read().decode("utf-8"))
-            if not dashboard.get("wallet", {}).get("periods"):
-                raise ValueError("网站没有确认 Wallet 缓存。")
-            print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存已更新。")
-        except (OSError, ValueError, urllib.error.URLError) as error:
-            print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存将在首次访问时更新（{error}）。")
+            raise ValueError(dashboard.get("error", "网站没有确认 Wallet 缓存。"))
+        expected_end = max(str(row["date"]) for row in rows)
+        latest_month = expected_end[:7]
+        latest_period = next((period for period in periods if period.get("id") == latest_month), None)
+        if not latest_period or str(latest_period.get("end", "")) < expected_end:
+            raise ValueError(f"网站仍是旧数据；期望截至 {expected_end}。")
+        expected_total = round(sum(float(row["consumption"]) for row in rows if str(row["date"]).startswith(latest_month)), 2)
+        published_total = round(sum(float(row.get("recharge", 0)) for row in latest_period.get("overall", [])), 2)
+        if abs(expected_total - published_total) > 0.01:
+            raise ValueError(f"网站缓存金额未更新；本地 {expected_total:.2f}，网站 {published_total:.2f}。")
+        print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存已更新至 {expected_end}。")
         return 0
     except (OSError, ValueError, KeyError, urllib.error.URLError) as error:
         print(f"同步失败：{error}", file=sys.stderr)
