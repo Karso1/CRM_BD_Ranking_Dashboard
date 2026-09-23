@@ -78,8 +78,9 @@ def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str
     """Read the single editable UID relationship and monthly-target workbook.
 
     A configured master UID matches the relationship export's ``总代UID``.
-    A configured parent UID matches its ``上一级UID``. Master UID wins if a user
-    matches both. Only names in the workbook's ``BD`` list may be shown as a BD;
+    A configured parent UID matches its ``上一级UID``. Parent UID wins if a user
+    matches both, so explicitly configured sub-agents are separated from their
+    master agent. Only names in the workbook's ``BD`` list may be shown as a BD;
     other internal staff are aggregated as ``UPay``.
     """
     frame = normalise_columns(pd.read_excel(path, dtype=str))
@@ -185,8 +186,11 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     parent_mapping = mapping[mapping.parent_uid != ""][["parent_uid", "bd", "agent"]].rename(columns={"bd": "parent_bd", "agent": "parent_agent"})
     population = relation.merge(master_mapping, on="master_uid", how="left")
     population = population.merge(parent_mapping, on="parent_uid", how="left")
-    population["bd"] = population.master_bd.combine_first(population.parent_bd)
-    population["agent"] = population.master_agent.combine_first(population.parent_agent)
+    # A parent mapping is more specific than a master mapping. Prefer it when
+    # both exist; fall back to the master mapping for users whose direct parent
+    # has not been configured separately.
+    population["bd"] = population.parent_bd.combine_first(population.master_bd)
+    population["agent"] = population.parent_agent.combine_first(population.master_agent)
     mapped_users = population[population.bd.notna()].copy()
     # Keep every user that can be related to a master UID. Transactions with an
     # unknown master (or no relation row) are deliberately retained later as
