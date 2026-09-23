@@ -6,14 +6,13 @@ echo "将读取 ../total data 中的所有交易记录，以及同目录下的�
 echo ""
 
 python3 backfill_wallet_history.py --input-dir ../total\ data --output-dir ./outputs/history
-status=$?
+result_code=$?
 
 echo ""
-if [ $status -eq 0 ]; then
+if [ $result_code -eq 0 ]; then
   echo "完成。请先核对 outputs/history/wallet_daily_metrics.csv。"
 else
   echo "处理未完成，请保留当前窗口并把报错截图发给我。"
 fi
 read "?按 Enter 键关闭窗口..."
-exit $status
-
+exit $result_code

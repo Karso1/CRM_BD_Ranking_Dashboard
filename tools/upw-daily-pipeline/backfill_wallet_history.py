@@ -263,6 +263,14 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
         transaction_count=("order_id", "nunique"),
     )
 
+    # The reporting cutoff follows completed transaction data. Card and
+    # registration exports can arrive one day earlier than transactions;
+    # including that later day creates a misleading zero-consumption point.
+    latest_transaction_date = consumption.loc[consumption.transaction_count > 0, "date"].max()
+    if pd.notna(latest_transaction_date):
+        registrations = registrations[registrations.date <= latest_transaction_date]
+        card_metrics = card_metrics[card_metrics.date <= latest_transaction_date]
+
     daily = registrations.merge(card_metrics, on=["date", "bd", "agent"], how="outer")
     daily = daily.merge(consumption, on=["date", "bd", "agent"], how="outer").fillna(0)
     for column in ("register", "open_card_virtual", "open_card_physical", "transaction_count"):
@@ -314,6 +322,9 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
         "included_transaction_types": config["included_transaction_types"],
         "start": start,
         "end": end,
+        "latest_complete_transaction_date": (
+            latest_transaction_date.strftime("%Y-%m-%d") if pd.notna(latest_transaction_date) else None
+        ),
         "daily_rows": int(len(daily)),
         "daily_date_range": [daily.date.min() if not daily.empty else None, daily.date.max() if not daily.empty else None],
     }
