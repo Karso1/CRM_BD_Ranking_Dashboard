@@ -1,4 +1,4 @@
-# UPay Performance Dashboard｜操作说明
+# Performance Dashboard｜操作说明
 
 线上看板：<https://upay-bd-ranking.karsol.workers.dev/>
 
