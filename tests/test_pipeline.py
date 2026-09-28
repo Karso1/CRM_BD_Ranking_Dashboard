@@ -53,6 +53,7 @@ class PipelineTests(unittest.TestCase):
             output = Path(temporary)
             for name in ("business_daily_metrics.csv", "business_monthly_targets.csv"):
                 (output / name).write_text("fixture")
+            (output / "agent_profiles.json").write_text(json.dumps([{"name":"fixture","owner":"UPay","type":"代理商","email":"","cooperationStart":""}]))
             receipt = {"environment": "staging", "mode": "run", "status": "verified", "code_version": "tested",
                 "outputs": pipeline.output_hashes(output)}
             (output / "last_success.json").write_text(json.dumps(receipt))
@@ -64,6 +65,23 @@ class PipelineTests(unittest.TestCase):
             with patch.object(pipeline, "plan", return_value={"output": output}), patch.object(pipeline, "code_version", return_value="changed"):
                 with self.assertRaisesRegex(ValueError, "代码已变化"):
                     pipeline.validated_staging("upb")
+
+    def test_promotion_rejects_missing_or_empty_agent_roster(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            for name in ("business_daily_metrics.csv", "business_monthly_targets.csv"):
+                (output / name).write_text("fixture")
+            receipt = {"environment": "staging", "mode": "run", "status": "verified", "code_version": "tested",
+                "outputs": pipeline.output_hashes(output)}
+            (output / "last_success.json").write_text(json.dumps(receipt))
+            with patch.object(pipeline, "plan", return_value={"output": output}), patch.object(pipeline, "code_version", return_value="tested"):
+                with self.assertRaisesRegex(ValueError, "缺少有效代理名册"):
+                    pipeline.validated_staging("upw")
+                (output / "agent_profiles.json").write_text("[]")
+                receipt["outputs"] = pipeline.output_hashes(output)
+                (output / "last_success.json").write_text(json.dumps(receipt))
+                with self.assertRaisesRegex(ValueError, "代理名册为空"):
+                    pipeline.validated_staging("upw")
 
 
 if __name__ == "__main__":

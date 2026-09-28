@@ -48,7 +48,14 @@ def validated_staging(platform: str) -> dict:
     if receipt.get("code_version") != code_version(platform):
         raise ValueError("计算/同步代码已变化，请重新运行测试程序后再发布。")
     hashes = output_hashes(staging["output"])
-    if len(hashes) < 2 or hashes != receipt.get("outputs"):
+    profile_path = staging["output"] / "agent_profiles.json"
+    try:
+        profiles = json.loads(profile_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raise ValueError("测试输出缺少有效代理名册，已阻止发布；请重新运行测试程序。") from None
+    if not isinstance(profiles, list) or not profiles:
+        raise ValueError("测试代理名册为空，已阻止发布；请检查原始关系表后重新运行测试程序。")
+    if len(hashes) < 3 or hashes != receipt.get("outputs"):
         raise ValueError("测试输出在验收后发生变化，请重新运行测试程序。")
     return staging
 
