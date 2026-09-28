@@ -1,130 +1,50 @@
 #!/usr/bin/env python3
-"""Upload the canonical Wallet daily CSV to the private Google Sheet endpoint."""
-
-from __future__ import annotations
-
+"""UPW CSV adapter for the shared synchronization pipeline."""
 import argparse
 import csv
 import json
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "daily-operations" / "90-系统维护"))
+from sync_common import sync
 
-HEADERS = [
-    "date", "bd", "agent", "register", "open_card_virtual",
-    "open_card_physical", "consumption", "transaction_count",
-]
-TARGET_HEADERS = ["month", "bd", "target"]
-DEFAULT_DASHBOARD_REFRESH_URL = "https://upay-bd-ranking.karsol.workers.dev/api/dashboard?platform=wallet&refresh=1"
+DAILY_HEADERS = ["date","bd","agent","register","open_card_virtual","open_card_physical","consumption","transaction_count"]
+TARGET_HEADERS = ["month","bd","target"]
 
-
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Treat Apps Script's accepted POST redirect as a successful handoff.
-
-    The /exec endpoint writes the Sheet and then redirects to a Google content
-    host. Following that redirect as a POST can return HTTP 405 even though the
-    write has already succeeded.  We therefore stop at the redirect and verify
-    the result with a separate authenticated GET request.
-    """
-
-    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
-        return None
-
-
-def number(value: str, integer: bool = False) -> int | float:
-    parsed = float(str(value or "0").replace(",", ""))
-    return int(parsed) if integer else parsed
-
-
-def load_rows(path: Path) -> list[dict[str, object]]:
+def rows(path, headers):
     with path.open("r", encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)
-        if reader.fieldnames != HEADERS:
-            raise ValueError(f"CSV 字段不正确。需要：{', '.join(HEADERS)}")
-        return [{
-            "date": row["date"],
-            "bd": row["bd"],
-            "agent": row["agent"],
-            "register": number(row["register"], True),
-            "open_card_virtual": number(row["open_card_virtual"], True),
-            "open_card_physical": number(row["open_card_physical"], True),
-            "consumption": number(row["consumption"]),
-            "transaction_count": number(row["transaction_count"], True),
-    } for row in reader]
+        if reader.fieldnames != headers:
+            raise ValueError(f"{path.name} 字段不正确。")
+        output = []
+        for row in reader:
+            item = {}
+            for key, value in row.items():
+                if key in {"date", "month", "bd", "agent", "category"}:
+                    item[key] = value
+                else:
+                    number = float(str(value or "0").replace(",", ""))
+                    item[key] = int(number) if key in {"register", "open_card_virtual", "open_card_physical", "transaction_count", "recharge_count"} else number
+            output.append(item)
+        return output
 
-
-def load_targets(path: Path) -> list[dict[str, object]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as source:
-        reader = csv.DictReader(source)
-        if reader.fieldnames != TARGET_HEADERS:
-            raise ValueError(f"目标 CSV 字段不正确。需要：{', '.join(TARGET_HEADERS)}")
-        return [{"month": row["month"], "bd": row["bd"], "target": number(row["target"])} for row in reader]
-
-
-def main() -> int:
-    script_dir = Path(__file__).resolve().parent
-    parser = argparse.ArgumentParser(description="Sync Wallet daily dashboard data to Google Sheets.")
-    parser.add_argument("--csv", type=Path, default=script_dir / "outputs" / "history" / "wallet_daily_metrics.csv")
-    parser.add_argument("--targets", type=Path, default=script_dir / "outputs" / "history" / "wallet_monthly_targets.csv")
-    parser.add_argument("--settings", type=Path, default=script_dir / "sync.local.json")
-    parser.add_argument("--dashboard-url", default=DEFAULT_DASHBOARD_REFRESH_URL, help="Website cache refresh URL")
+def main():
+    root = Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--csv", type=Path, default=root / "outputs/history/wallet_daily_metrics.csv")
+    parser.add_argument("--targets", type=Path, default=root / "outputs/history/wallet_monthly_targets.csv")
+    parser.add_argument("--settings", type=Path, default=root / "sync.local.json")
+    parser.add_argument("--dashboard-url")
+    parser.add_argument("--expected-environment", choices=["production", "staging"], default="production")
+    parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args()
     try:
-        settings = json.loads(args.settings.read_text(encoding="utf-8"))
-        endpoint, key = settings["endpoint"], settings["key"]
-        rows = load_rows(args.csv)
-        targets = load_targets(args.targets)
-        if not rows:
-            raise ValueError("每日数据为空，已停止同步。")
-        url = endpoint + ("&" if "?" in endpoint else "?") + urllib.parse.urlencode({"key": key})
-        request = urllib.request.Request(
-            url,
-            data=json.dumps({"rows": rows, "targets": targets}, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json; charset=utf-8"},
-            method="POST",
-        )
-        opener = urllib.request.build_opener(NoRedirect())
-        try:
-            with opener.open(request, timeout=90) as response:
-                result = json.loads(response.read().decode("utf-8"))
-            if not result.get("ok"):
-                raise ValueError(result.get("error", "Google Sheet 未确认写入。"))
-        except urllib.error.HTTPError as error:
-            if error.code not in {301, 302, 303, 307, 308}:
-                raise
-
-        with urllib.request.urlopen(url, timeout=90) as response:
-            verification = json.loads(response.read().decode("utf-8"))
-        periods = verification.get("wallet", {}).get("periods", [])
-        if not periods:
-            raise ValueError(verification.get("error", "Google Sheet 写入后未能验证数据。"))
-        # Warm the Worker cache now, while this local run is still in progress.
-        # Visitors then receive the newly synced Wallet data immediately instead
-        # of waiting for the first browser request to rebuild it from Sheets.
-        try:
-            dashboard_request = urllib.request.Request(
-                args.dashboard_url,
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "UPay-Wallet-Sync/1.0",
-                },
-            )
-            with urllib.request.urlopen(dashboard_request, timeout=120) as response:
-                dashboard = json.loads(response.read().decode("utf-8"))
-            if not dashboard.get("wallet", {}).get("periods"):
-                raise ValueError("网站没有确认 Wallet 缓存。")
-            print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存已更新。")
-        except (OSError, ValueError, urllib.error.URLError) as error:
-            print(f"Google Sheet 同步完成：{len(rows)} 行，已验证 {len(periods)} 个统计月份；网站缓存将在首次访问时更新（{error}）。")
-        return 0
-    except (OSError, ValueError, KeyError, urllib.error.URLError) as error:
-        print(f"同步失败：{error}", file=sys.stderr)
+        return sync(json.loads(args.settings.read_text(encoding="utf-8")), rows(args.csv, DAILY_HEADERS),
+                    rows(args.targets, TARGET_HEADERS), "wallet", args.expected_environment, args.dashboard_url, args.verify_only)
+    except (OSError, ValueError, KeyError) as error:
+        print(f"UPW 本地文件读取失败：{error}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

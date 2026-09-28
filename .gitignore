@@ -47,3 +47,22 @@ next-env.d.ts
 # Local Wallet pipeline outputs and private Google Sheet settings.
 /tools/upw-daily-pipeline/outputs/
 /tools/upw-daily-pipeline/sync.local.json
+/tools/upw-daily-pipeline/sync.staging.local.json
+/tools/upb-daily-pipeline/outputs/
+/tools/upb-daily-pipeline/cache/
+/tools/upb-daily-pipeline/sync.local.json
+/tools/upb-daily-pipeline/sync.staging.local.json
+/tools/upw-daily-pipeline/staging-inputs/
+/tools/upb-daily-pipeline/staging-inputs/
+/tools/upw-daily-pipeline/__pycache__/
+/tools/upb-daily-pipeline/__pycache__/
+/tools/daily-operations/03-运行记录/*.log
+/tools/daily-operations/05-运行记录/
+/tools/daily-operations/04-出错时再看/运行记录/*.log
+/tools/daily-operations/04-出错时再看/运行记录/*.json
+/tools/daily-operations/03-原始数据/UPB每日数据
+/tools/daily-operations/03-原始数据/UPW每日数据
+/tools/daily-operations/.*.lock
+__pycache__/
+*.pyc
+*.tsbuildinfo

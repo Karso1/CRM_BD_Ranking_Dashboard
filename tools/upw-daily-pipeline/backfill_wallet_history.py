@@ -78,8 +78,9 @@ def load_configuration(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str
     """Read the single editable UID relationship and monthly-target workbook.
 
     A configured master UID matches the relationship export's ``总代UID``.
-    A configured parent UID matches its ``上一级UID``. Master UID wins if a user
-    matches both. Only names in the workbook's ``BD`` list may be shown as a BD;
+    A configured parent UID matches its ``上一级UID``. Parent UID wins if a user
+    matches both, so explicitly configured sub-agents are separated from their
+    master agent. Only names in the workbook's ``BD`` list may be shown as a BD;
     other internal staff are aggregated as ``UPay``.
     """
     frame = normalise_columns(pd.read_excel(path, dtype=str))
@@ -156,7 +157,10 @@ def source_files(input_dir: Path) -> tuple[Path, Path, list[Path]]:
             raise ValueError(f"无法检查文件 {path.name}：{error}") from error
     if not transactions:
         raise FileNotFoundError("total data 中没有识别到交易记录文件。")
-    return relationship, cards, sorted(transactions, key=lambda path: path.name)
+    # Concatenate older exports first so drop_duplicates(..., keep="last") below
+    # keeps the row from the latest exported workbook when order IDs overlap.
+    # Use modification time as the primary order; filename is a deterministic tie-break.
+    return relationship, cards, sorted(transactions, key=lambda path: (path.stat().st_mtime_ns, path.name))
 
 
 def apply_range(frame: pd.DataFrame, date_column: str, start: str | None, end: str | None) -> pd.DataFrame:
@@ -185,8 +189,11 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     parent_mapping = mapping[mapping.parent_uid != ""][["parent_uid", "bd", "agent"]].rename(columns={"bd": "parent_bd", "agent": "parent_agent"})
     population = relation.merge(master_mapping, on="master_uid", how="left")
     population = population.merge(parent_mapping, on="parent_uid", how="left")
-    population["bd"] = population.master_bd.combine_first(population.parent_bd)
-    population["agent"] = population.master_agent.combine_first(population.parent_agent)
+    # A parent mapping is more specific than a master mapping. Prefer it when
+    # both exist; fall back to the master mapping for users whose direct parent
+    # has not been configured separately.
+    population["bd"] = population.parent_bd.combine_first(population.master_bd)
+    population["agent"] = population.parent_agent.combine_first(population.master_agent)
     mapped_users = population[population.bd.notna()].copy()
     # Keep every user that can be related to a master UID. Transactions with an
     # unknown master (or no relation row) are deliberately retained later as
@@ -263,6 +270,14 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
         transaction_count=("order_id", "nunique"),
     )
 
+    # The reporting cutoff follows completed transaction data. Card and
+    # registration exports can arrive one day earlier than transactions;
+    # including that later day creates a misleading zero-consumption point.
+    latest_transaction_date = consumption.loc[consumption.transaction_count > 0, "date"].max()
+    if pd.notna(latest_transaction_date):
+        registrations = registrations[registrations.date <= latest_transaction_date]
+        card_metrics = card_metrics[card_metrics.date <= latest_transaction_date]
+
     daily = registrations.merge(card_metrics, on=["date", "bd", "agent"], how="outer")
     daily = daily.merge(consumption, on=["date", "bd", "agent"], how="outer").fillna(0)
     for column in ("register", "open_card_virtual", "open_card_physical", "transaction_count"):
@@ -314,6 +329,9 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
         "included_transaction_types": config["included_transaction_types"],
         "start": start,
         "end": end,
+        "latest_complete_transaction_date": (
+            latest_transaction_date.strftime("%Y-%m-%d") if pd.notna(latest_transaction_date) else None
+        ),
         "daily_rows": int(len(daily)),
         "daily_date_range": [daily.date.min() if not daily.empty else None, daily.date.max() if not daily.empty else None],
     }

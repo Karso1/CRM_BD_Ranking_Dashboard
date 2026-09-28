@@ -1,0 +1,13 @@
+date,bd,agent,category,total_amount,consumption,open_card_virtual,open_card_physical,recharge_amount,shared_consumption,transaction_count,recharge_count
+2026-09-20,Demo BD Alpha,Demo Agent North,代理商,24000,20500,2,0,20000,4000,24,8
+2026-09-20,Demo BD Alpha,Demo API One,API,8500,8000,0,1,7000,1500,8,3
+2026-09-20,Demo BD Beta,Demo Agent South,代理商,18000,16000,2,0,16000,2000,18,6
+2026-09-20,UPay,Demo Agent Internal,代理商,5000,4200,1,0,4200,800,5,2
+2026-09-21,Demo BD Alpha,Demo Agent North,代理商,18000,15400,1,0,15000,3000,17,6
+2026-09-21,Demo BD Alpha,Demo API One,API,10000,9400,1,0,8000,2000,11,4
+2026-09-21,Demo BD Beta,Demo Agent South,代理商,20000,17600,1,1,17000,3000,20,7
+2026-09-21,UPay,Demo Agent Internal,代理商,6500,5600,0,0,5600,900,6,2
+2026-09-22,Demo BD Alpha,Demo Agent North,代理商,14000,12100,1,0,12000,2000,14,5
+2026-09-22,Demo BD Alpha,Demo API One,API,4500,4200,0,0,4000,500,5,2
+2026-09-22,Demo BD Beta,Demo Agent South,代理商,12000,10500,1,0,10500,1500,12,4
+2026-09-22,UPay,Demo Agent Internal,代理商,3500,3000,0,0,3000,500,3,1

@@ -6,6 +6,13 @@ import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
+const deploymentEnv = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV ?? "production";
+const dashboardSnapshotBinding =
+  deploymentEnv === "staging"
+    ? { binding: "DASHBOARD_SNAPSHOTS", id: "0f6940e225fd4cc68efe030644fa58a4" }
+    : deploymentEnv === "production"
+      ? { binding: "DASHBOARD_SNAPSHOTS", id: "7578a636222346f79889458e92082121" }
+      : undefined;
 
 const { d1, r2 } = hostingConfig;
 
@@ -14,6 +21,9 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
 const localBindingConfig = {
+  ...(process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === "staging"
+    ? { name: "upay-bd-ranking-staging" }
+    : {}),
   main: "vinext/server/fetch-handler",
   compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
@@ -25,6 +35,7 @@ const localBindingConfig = {
         },
       ]
     : [],
+  kv_namespaces: dashboardSnapshotBinding ? [dashboardSnapshotBinding] : [],
   r2_buckets: r2
     ? [
         {
@@ -51,6 +62,11 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    define: {
+      "process.env.NEXT_PUBLIC_DEPLOYMENT_ENV": JSON.stringify(
+        process.env.NEXT_PUBLIC_DEPLOYMENT_ENV ?? "production",
+      ),
+    },
     server: {
       ...(managedLinux ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] } : {}),
       ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),

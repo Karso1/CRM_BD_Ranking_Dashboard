@@ -1,0 +1,10 @@
+date,bd,agent,register,open_card_virtual,open_card_physical,consumption,transaction_count
+2026-09-20,Demo BD Alpha,Demo Wallet Agent A,2,2,0,12000,18
+2026-09-20,Demo BD Beta,Demo Wallet Agent B,1,2,0,9000,14
+2026-09-20,UPay,Demo Wallet Internal,0,1,0,3000,5
+2026-09-21,Demo BD Alpha,Demo Wallet Agent A,1,1,1,9000,13
+2026-09-21,Demo BD Beta,Demo Wallet Agent B,1,1,0,7000,10
+2026-09-21,UPay,Demo Wallet Internal,0,0,0,2800,4
+2026-09-22,Demo BD Alpha,Demo Wallet Agent A,1,1,0,8000,11
+2026-09-22,Demo BD Beta,Demo Wallet Agent B,1,1,0,6500,9
+2026-09-22,UPay,Demo Wallet Internal,0,0,0,2200,3

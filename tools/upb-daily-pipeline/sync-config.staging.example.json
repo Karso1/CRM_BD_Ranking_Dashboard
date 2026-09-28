@@ -1,0 +1,4 @@
+{
+  "endpoint": "https://script.google.com/macros/s/STAGING_DEPLOYMENT_ID/exec",
+  "key": "REPLACE_WITH_A_STAGING_ONLY_RANDOM_KEY"
+}
