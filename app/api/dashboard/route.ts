@@ -19,6 +19,9 @@ export async function GET(request: Request) {
       status: 400, headers: { "Cache-Control": "no-store" },
     });
   }
+  if (request.method === "POST" && (!forceRefresh || !platform)) {
+    return Response.json({ error: "Profile publication requires a platform refresh." }, { status: 400 });
+  }
 
   // Refreshes are for the trusted daily sync only. Reuse the API key already
   // held by that pipeline, but require it in a header rather than the URL.
@@ -32,6 +35,36 @@ export async function GET(request: Request) {
     const fingerprint = (value: string) => createHash("sha256").update(value).digest();
     if (!timingSafeEqual(fingerprint(expectedKey), fingerprint(suppliedKey))) {
       return Response.json({ error: "Unauthorized." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    }
+  }
+
+  let profiles: unknown[] | undefined;
+  if (request.method === "POST") {
+    try {
+      const reader = request.body?.getReader();
+      if (!reader) throw new Error("Missing body");
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 2_000_000) { await reader.cancel(); throw new Error("Body too large"); }
+        chunks.push(value);
+      }
+      const body = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.length; }
+      const parsed: unknown = JSON.parse(new TextDecoder().decode(body));
+      if (!isRecord(parsed) || !Array.isArray(parsed.profiles) || parsed.profiles.length > 10000 ||
+          !parsed.profiles.every(p => isRecord(p) && ["name", "owner", "email", "cooperationStart"].every(k => typeof p[k] === "string" && p[k].length <= 500) &&
+            Boolean(p.name) && (p.type === "代理商" || p.type === "API") &&
+            (p.cooperationStart === "" || /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(String(p.cooperationStart))))) {
+        throw new Error("Invalid profiles");
+      }
+      profiles = parsed.profiles;
+    } catch {
+      return Response.json({ error: "Invalid agent profiles." }, { status: 400, headers: { "Cache-Control": "no-store" } });
     }
   }
 
@@ -120,8 +153,17 @@ export async function GET(request: Request) {
     updatedAt?: string;
     environment?: string;
   } | null;
-  const business = sourcePayload?.business?.periods?.length ? sourcePayload.business : undefined;
-  const wallet = sourcePayload?.wallet?.periods?.length ? sourcePayload.wallet : undefined;
+  // Older verification clients send GET: retain the last published contacts.
+  // An explicit empty array from a new client intentionally clears contacts.
+  if (profiles === undefined && snapshotStore && snapshotKey) {
+    const previous: unknown = await snapshotStore.get(snapshotKey, { type: "json" });
+    if (isRecord(previous) && previous.environment === deploymentEnvironment && isRecord(previous[platform!])) {
+      const previousPlatform = previous[platform!] as Record<string, unknown>;
+      if (Array.isArray(previousPlatform.profiles)) profiles = previousPlatform.profiles;
+    }
+  }
+  const business = sourcePayload?.business?.periods?.length ? { ...sourcePayload.business, ...(platform === "business" && profiles !== undefined ? { profiles } : {}) } : undefined;
+  const wallet = sourcePayload?.wallet?.periods?.length ? { ...sourcePayload.wallet, ...(platform === "wallet" && profiles !== undefined ? { profiles } : {}) } : undefined;
   const updatedAt = sourcePayload?.updatedAt;
 
   // Include the environment so sync validation cannot mistake a production
@@ -159,6 +201,10 @@ export async function GET(request: Request) {
   return Response.json(dashboard, {
     headers: { "Cache-Control": "no-store, max-age=0", "X-Dashboard-Refresh": refreshNeeded ? "1" : "0" },
   });
+}
+
+export async function POST(request: Request) {
+  return GET(request);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

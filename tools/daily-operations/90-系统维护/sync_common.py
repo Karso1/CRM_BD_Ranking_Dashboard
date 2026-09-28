@@ -112,7 +112,7 @@ def assert_source(periods, rows, targets, platform):
             raise ValueError(f"云端月目标与本地不一致（{key[0]}，{key[1]}）。")
 
 
-def sync(settings, rows, targets, platform, environment, website_url=None, verify_only=False):
+def sync(settings, rows, targets, platform, environment, website_url=None, verify_only=False, profiles=None):
     phase, posted = "读取本地文件", False
     try:
         if not rows:
@@ -157,12 +157,16 @@ def sync(settings, rows, targets, platform, environment, website_url=None, verif
         assert_source(periods, rows, targets, platform)
         phase = "刷新并核验网站数据"
         print(f"本地与云端的每日金额、卡数及月目标已核对，正在{phase}…", flush=True)
-        refresh = urllib.request.Request(refresh_url, headers={"Accept": "application/json", "User-Agent": "UPay-Sync/2.0",
+        refresh = urllib.request.Request(refresh_url,
+            data=json.dumps({"profiles": profiles}, ensure_ascii=False, allow_nan=False).encode("utf-8") if profiles is not None else None,
+            headers={"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "UPay-Sync/2.0",
             "Authorization": f"Bearer {key}"})
         website = read_json(refresh)
         require_environment(website, environment)
         if website.get(platform, {}).get("periods") != periods:
             raise ValueError("网站数据与已验收的云端数据不一致。")
+        if profiles is not None and website.get(platform, {}).get("profiles") != profiles:
+            raise ValueError("网站代理资料与本地表格不一致。")
         print(f"验收通过：{len(rows)} 行、{len(periods)} 个月，截止 {max(row['date'] for row in rows)}；网站缓存已更新。", flush=True)
         return 0
     except (OSError, ValueError, KeyError, TypeError) as error:

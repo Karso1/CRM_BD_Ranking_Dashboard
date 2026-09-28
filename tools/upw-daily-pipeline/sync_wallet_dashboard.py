@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "daily-operations" / "90-系统维护"))
 from sync_common import sync
+from agent_profiles import load_profiles
 
 DAILY_HEADERS = ["date","bd","agent","register","open_card_virtual","open_card_physical","consumption","transaction_count"]
 TARGET_HEADERS = ["month","bd","target"]
@@ -41,7 +42,8 @@ def main():
     args = parser.parse_args()
     try:
         return sync(json.loads(args.settings.read_text(encoding="utf-8")), rows(args.csv, DAILY_HEADERS),
-                    rows(args.targets, TARGET_HEADERS), "wallet", args.expected_environment, args.dashboard_url, args.verify_only)
+                    rows(args.targets, TARGET_HEADERS), "wallet", args.expected_environment, args.dashboard_url, args.verify_only,
+                    profiles=load_profiles(args.csv.parent))
     except (OSError, ValueError, KeyError) as error:
         print(f"UPW 本地文件读取失败：{error}", file=sys.stderr)
         return 1

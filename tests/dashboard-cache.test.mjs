@@ -10,12 +10,33 @@ function harness(cached, snapshots, deployment='staging',sourcePayload=payload){
  let fetches=0,stored;
  const exports={};
  const env={WALLET_SOURCE_URL:'https://example.test/source?key=valid',...(snapshots?{DASHBOARD_SNAPSHOTS:snapshots}:{})};
- const context=vm.createContext({exports,require:name=>name==='cloudflare:workers'?{env}:{createHash,timingSafeEqual},process:{env:{NEXT_PUBLIC_DEPLOYMENT_ENV:deployment}},URL,Request,Response,AbortSignal,Date,
+ const context=vm.createContext({exports,require:name=>name==='cloudflare:workers'?{env}:{createHash,timingSafeEqual},process:{env:{NEXT_PUBLIC_DEPLOYMENT_ENV:deployment}},URL,Request,Response,AbortSignal,Date,TextDecoder,Uint8Array,
   caches:{default:{match:async()=>cached?.clone(),delete:async()=>true,put:async(_,value)=>{stored=value}}},
   fetch:async()=>{fetches++;return Response.json(sourcePayload)}
  });vm.runInContext(source,context);
- return {read:(query,headers={})=>exports.GET(new Request(`https://example.test/api/dashboard?platform=wallet${query}`,{headers})),fetches:()=>fetches,stored:()=>stored};
+ return {read:(query,headers={})=>exports.GET(new Request(`https://example.test/api/dashboard?platform=wallet${query}`,{headers})),publish:(profiles,headers={Authorization:'Bearer valid'})=>exports.POST(new Request('https://example.test/api/dashboard?platform=wallet&refresh=1',{method:'POST',headers,body:JSON.stringify({profiles})})),fetches:()=>fetches,stored:()=>stored};
 }
+
+test('profile publication is authenticated, preserves blanks, and is returned with the snapshot',async()=>{
+ let published;
+ const snapshots={get:async()=>null,put:async(_,value)=>{published=JSON.parse(value)}};
+ const h=harness(null,snapshots);
+ const profiles=[{name:'Demo',owner:'BD',type:'代理商',email:'demo@example.test',cooperationStart:'2024-12-02 06:45'}, {name:'Blank',owner:'BD',type:'代理商',email:'',cooperationStart:''}];
+ assert.equal((await h.publish(profiles,{})).status,401);assert.equal(h.fetches(),0);
+ const result=await h.publish(profiles);
+ assert.equal(result.status,200);assert.deepEqual((await result.json()).wallet.profiles,profiles);assert.deepEqual(published.wallet.profiles,profiles);
+});
+test('invalid profiles never publish or fetch Google',async()=>{
+ const h=harness(null,{get:async()=>null,put:async()=>assert.fail('write')});
+ assert.equal((await h.publish([{name:'Demo'}])).status,400);assert.equal(h.fetches(),0);
+});
+test('legacy GET verification retains profiles, explicit empty list clears them',async()=>{
+ const profiles=[{name:'Demo',owner:'BD',type:'代理商',email:'',cooperationStart:''}];
+ let published;
+ const h=harness(null,{get:async()=>({...payload,wallet:{...payload.wallet,profiles}}),put:async(_,value)=>{published=JSON.parse(value)}});
+ await h.read('&refresh=1',{Authorization:'Bearer valid'});assert.deepEqual(published.wallet.profiles,profiles);
+ await h.publish([]);assert.deepEqual(published.wallet.profiles,[]);
+});
 test('cold startup probe returns immediately without calling Google',async()=>{
  const h=harness();assert.equal((await h.read('&cacheOnly=1')).status,204);assert.equal(h.fetches(),0);
 });

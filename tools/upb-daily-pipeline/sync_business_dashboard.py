@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "daily-operations" / "90-系统维护"))
 from sync_common import sync
+from agent_profiles import load_profiles
 
 DAILY_HEADERS = ["date","bd","agent","category","total_amount","consumption","open_card_virtual","open_card_physical","recharge_amount","shared_consumption","transaction_count","recharge_count"]
 TARGET_HEADERS = ["month","bd","target","card_target"]
@@ -41,7 +42,8 @@ def main():
     args = parser.parse_args()
     try:
         return sync(json.loads(args.settings.read_text(encoding="utf-8")), rows(args.daily, DAILY_HEADERS),
-                    rows(args.targets, TARGET_HEADERS), "business", args.expected_environment, args.dashboard_url, args.verify_only)
+                    rows(args.targets, TARGET_HEADERS), "business", args.expected_environment, args.dashboard_url, args.verify_only,
+                    profiles=load_profiles(args.daily.parent))
     except (OSError, ValueError, KeyError) as error:
         print(f"UPB 本地文件读取失败：{error}", file=sys.stderr)
         return 1

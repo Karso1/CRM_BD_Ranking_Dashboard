@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
+
+.agent-name-button{border:0;background:transparent;color:inherit;font:inherit;font-weight:700;padding:6px 0;cursor:pointer;text-align:left;text-underline-offset:4px}
+.agent-name-button:hover{color:#77e2ba;text-decoration:underline}
+.agent-name-button:focus-visible{outline:2px solid #58d2a5;outline-offset:4px;border-radius:3px}
+.agent-profile-dialog{background:#0c1c1f!important;color:#e8f5f1;border-color:#2a4944!important;max-width:440px!important}
+.agent-profile-dialog [data-slot="dialog-description"]{color:#92aaa5}
+.agent-profile-fields{margin:4px 0 0;display:grid;gap:16px}
+.agent-profile-fields>div{display:grid;gap:6px}
+.agent-profile-fields dt{font-size:12px;color:#92aaa5}
+.agent-profile-fields dd{margin:0;min-height:24px;font-size:14px;overflow-wrap:anywhere;border-bottom:1px solid #203638;padding-bottom:10px}
+.cooperation-date{font-variant-numeric:tabular-nums;color:#adc1bd}
 .activity-evidence{display:block;margin-top:5px;color:#819895;font-size:9px;font-weight:400}
 .sort-header{display:inline-flex;align-items:center;gap:5px;padding:6px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;white-space:nowrap}
 .sort-header svg{color:#4f6967}.sort-header:hover,.sort-header.active{color:#b9d0cb}.sort-header.active svg{color:var(--mint)}

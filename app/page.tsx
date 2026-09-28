@@ -9,11 +9,13 @@ import walletData from "./wallet-data.json";
 import stagingDashboardData from "./staging-dashboard-data.json";
 import { DashboardDatePicker, FilterSelect } from "@/components/dashboard-filters";
 import { agentActivity, activityKey } from "@/lib/agent-activity";
+import { AgentProfileButton } from "@/components/agent-profile";
+import { findAgentProfile, compareCooperationStart, type AgentProfile } from "@/lib/agent-profiles";
 
 type View = "总体" | "代理商" | "API";
 type Lang = "zh" | "en";
 type Platform = "business" | "wallet";
-type SortKey = "name" | "owner" | "target" | "recharge" | "completion" | "consumption" | "yesterday" | "cardsVirtual" | "cardsPhysical" | "status";
+type SortKey = "name" | "owner" | "target" | "recharge" | "completion" | "consumption" | "yesterday" | "cardsVirtual" | "cardsPhysical" | "status" | "cooperationStart";
 type CardMetrics = { cards:number; cardsVirtual?:number; cardsPhysical?:number };
 type Overall = { name:string; target:number; recharge:number; yesterday:number } & CardMetrics;
 type Detail = { name:string; owner:string; type:"代理商"|"API"; recharge:number; consumption:number; yesterday:number } & CardMetrics;
@@ -24,7 +26,7 @@ const fallbackPeriods:Record<Platform,Period[]> = {
  business: (isStaging ? stagingDashboardData.business.periods : dashboardData.periods) as Period[],
  wallet: (isStaging ? stagingDashboardData.wallet.periods : walletData.periods) as Period[],
 };
-type DashboardPayload = { business?:{periods?:Period[]}; wallet?:{periods?:Period[]} };
+type DashboardPayload = { business?:{periods?:Period[];profiles?:AgentProfile[]}; wallet?:{periods?:Period[];profiles?:AgentProfile[]} };
 const colors = ["#58d2a5", "#49a6f2", "#59d4e8", "#9b79e8", "#75889a"];
 const money = (v:number) => v >= 1e6 ? `${(v/1e6).toFixed(2)}M` : v >= 1e3 ? `${Math.round(v/1e3).toLocaleString()}K` : Math.round(v).toLocaleString();
 const number = (v:number) => v.toLocaleString("en-US",{maximumFractionDigits:0});
@@ -40,6 +42,7 @@ function Kpi({label,value,hint,icon,accent=false}:{label:string;value:string;hin
 export default function Home(){
  const initialPeriod=fallbackPeriods.business.at(-1)!;
  const [periodSets,setPeriodSets]=useState<Record<Platform,Period[]>>(fallbackPeriods);
+ const [profileSets,setProfileSets]=useState<Record<Platform,AgentProfile[]>>({business:[],wallet:[]});
  const [platform,setPlatform]=useState<Platform>("business"),[lang,setLang]=useState<Lang>("en"),[month,setMonth]=useState(initialPeriod.id),[mode,setMode]=useState<"mtd"|"range">("mtd"),[start,setStart]=useState(initialPeriod.start),[end,setEnd]=useState(initialPeriod.end),[owner,setOwner]=useState("全部BD"),[metric,setMetric]=useState("充值金额"),[view,setView]=useState<View>("总体"),[search,setSearch]=useState(""),[nav,setNav]=useState("dashboard"),[syncing,setSyncing]=useState(true),[syncFailed,setSyncFailed]=useState(false),[selectedContribution,setSelectedContribution]=useState<number|null>(null);
  const requestSequence=useRef(0);
  const [columnSort,setColumnSort]=useState<{key:SortKey;direction:"asc"|"desc"}|null>(null);
@@ -82,7 +85,9 @@ export default function Home(){
    const nextPeriods=payload[nextPlatform]?.periods;
    if(!nextPeriods?.length)throw new Error(`Dashboard response has no ${nextPlatform} data`);
    if(requestId!==requestSequence.current)return;
-   apply(nextPeriods);lastChecked.current[nextPlatform]=Date.now();
+   apply(nextPeriods);
+   setProfileSets(current=>({...current,[nextPlatform]:payload[nextPlatform]?.profiles??[]}));
+   lastChecked.current[nextPlatform]=Date.now();
    try{localStorage.setItem(storageKey,JSON.stringify(nextPeriods))}catch{/* Quota/private mode must not interrupt the dashboard. */}
    setSyncFailed(false);
   }catch{if(requestId===requestSequence.current){setSyncFailed(true)}}
@@ -131,9 +136,11 @@ export default function Home(){
  const overall=displayedOverall.filter(x=>owner==="全部BD"||x.name.toLowerCase()===owner.toLowerCase());
  const ownerMatches=(rawOwner:string,name="")=>owner==="全部BD"||displayedOwner(rawOwner,name).toLowerCase()===owner.toLowerCase();
  const source=view==="总体"?overall.map(x=>({...x,owner:x.name,consumption:0})):details.filter(x=>x.type===view&&ownerMatches(x.owner,x.name));
+ const profileFor=(row:{name:string;owner:string})=>view==="总体"?undefined:findAgentProfile(profileSets[platform],{name:row.name,owner:row.owner,type:view});
  const sortValue=(row:typeof source[number],key:SortKey):string|number=>{
   const rate="target" in row&&row.target?row.recharge/row.target:0;
   if(key==="name")return row.name;
+  if(key==="cooperationStart")return profileFor(row)?.cooperationStart??"";
   if(key==="owner")return displayedOwner(row.owner,row.name);
   if(key==="target")return "target" in row?row.target:0;
   if(key==="completion")return rate;
@@ -142,6 +149,7 @@ export default function Home(){
  };
  const rows=[...source].filter(x=>`${x.name} ${displayedOwner(x.owner,x.name)}`.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>{
   const key=columnSort?.key??(metric==="完成率"?"completion":metric==="当日充值"?"yesterday":"recharge"),left=sortValue(a,key),right=sortValue(b,key);
+  if(key==="cooperationStart")return compareCooperationStart(String(left),String(right),columnSort?.direction??"desc");
   const result=typeof left==="string"&&typeof right==="string"?left.localeCompare(right):Number(left)-Number(right);
   return (columnSort?.direction==="asc"?1:-1)*result;
  });
@@ -186,5 +194,5 @@ export default function Home(){
  <article className="chart-panel contribution"><header><div><p className="eyebrow">CONTRIBUTION</p><h2>{t.contribution}</h2></div></header><div className="contribution-body"><div className="donut-wrap">{mounted&&<ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}><PieChart><Pie data={contribution} dataKey="recharge" nameKey="name" innerRadius={38} outerRadius={57} paddingAngle={1} stroke="none" onMouseEnter={(_,index)=>setSelectedContribution(index)}>{contribution.map((_,i)=><Cell key={i} fill={colors[i%colors.length]} opacity={selectedContribution==null||selectedContribution===i?1:.32}/>)}</Pie></PieChart></ResponsiveContainer>}<div><strong>{money(selectedContributionData?.recharge??totals.recharge)}</strong><span>{selectedContributionData?.name??(isWallet?(lang==="zh"?"总消费":"Total consumption"):(lang==="zh"?"总金额":"Total amount"))}</span></div></div><div className="contribution-list">{contribution.map((x,i)=><button type="button" className={selectedContribution===i?"active":""} key={x.name} onClick={()=>setSelectedContribution(selectedContribution===i?null:i)}><i style={{background:colors[i%colors.length]}}/><b title={x.name}>{x.name}</b><span>{(x.share*100).toFixed(1)}%</span><em>{money(x.recharge)}</em></button>)}</div></div></article>
  <article className="chart-panel daily-chart"><header><div><p className="eyebrow">DAILY VELOCITY</p><h2>{isWallet?(lang==="zh"?"每日消费金额":"Daily consumption"):(lang==="zh"?"每日总金额":"Daily total amount")}</h2></div><div className="daily-summary"><strong>{money(totals.yesterday)}</strong><span>{t.compared}</span></div></header><div className="chart-body">{mounted&&<ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}><BarChart data={daily}><CartesianGrid stroke="#173033" vertical={false}/><XAxis dataKey="date" stroke="#71898a" fontSize={11} tickLine={false}/><YAxis stroke="#71898a" fontSize={11} tickLine={false} axisLine={false} tickFormatter={v=>`${Math.round(v/1000)}K`}/><Tooltip contentStyle={tip} formatter={v=>money(Number(v))}/><Bar dataKey="amount" fill="#58d2a5" radius={[2,2,0,0]}/></BarChart></ResponsiveContainer>}</div></article>
  <article className="attention-panel"><header><div><p className="eyebrow">ACTION QUEUE</p><h2>{t.attention}</h2></div><button onClick={()=>go("team","总体")}>{t.seeAll} →</button></header><div className="attention-list">{attention.length?attention.map((x,i)=><button key={x.name} onClick={()=>{setSearch(x.name);go("team","总体")}}><i className={i<2?"high":"medium"}>!</i><span><b>{x.name}</b><small>{lang==="zh"?`月度进度仅 ${(x.recharge/x.target*100).toFixed(1)}%`:`Monthly progress is ${(x.recharge/x.target*100).toFixed(1)}%`}</small></span><time>{end}</time></button>):<p className="empty-note">{t.none}</p>}</div></article></section>
- <section className="ranking-panel" id="ranking"><header><div><p className="eyebrow">LEADERBOARD</p><h2>{t.ranking}</h2></div><div className="view-tabs">{availableViews.map(x=><button key={x} className={view===x?"selected":""} onClick={()=>{setView(x);if(x!=="总体"&&metric==="完成率")setMetric("充值金额")}}>{x==="总体"?t.overall:x==="代理商"?t.agents:t.api}</button>)}</div></header><div className="table-wrap"><table><thead><tr><th>{t.rank}</th><SortTh label={view==="总体"?"BD":view==="代理商"?t.agents:t.api} sortKey="name"/><SortTh label={t.owner} sortKey="owner"/>{view==="总体"?<><SortTh label={t.target} sortKey="target"/><SortTh label={mode==="mtd"?cumulativeLabel:periodLabel} sortKey="recharge"/><SortTh label={t.completion} sortKey="completion"/></>:isWallet?<SortTh label={mode==="mtd"?cumulativeLabel:periodLabel} sortKey="recharge"/>:<><SortTh label={mode==="mtd"?cumulativeLabel:periodLabel} sortKey="recharge"/><SortTh label={t.consumption} sortKey="consumption"/></>}<SortTh label={mode==="mtd"?dailyLabel:averageDailyLabel} sortKey="yesterday"/><SortTh label={t.virtualCards} sortKey="cardsVirtual"/><SortTh label={t.physicalCards} sortKey="cardsPhysical"/><SortTh label={view==="总体"?t.status:lang==="zh"?"活跃度":"Activity"} sortKey="status"/></tr></thead><tbody>{rows.map((row,i)=>{const rate=view==="总体"&&"target" in row&&row.target?row.recharge/row.target:undefined,[label,tone]=state(rate),entityStatus=activityState(row);return <tr key={`${row.name}-${row.owner}`}><td><span className={`rank ${i<3?"top":""}`}>{i+1}</span></td><td className="name-cell"><i>{row.name[0]?.toUpperCase()}</i><b>{row.name}</b></td><td>{displayedOwner(row.owner,row.name)}</td>{view==="总体"&&"target" in row?<><td>{money(row.target)}</td><td className="money">{money(row.recharge)}</td><td><div className="rate-cell"><b>{(rate!*100).toFixed(1)}%</b><span><i style={{width:`${Math.min(rate!*100,100)}%`}}/></span></div></td></>:isWallet?<td className="money">{money(row.recharge)}</td>:<><td className="money">{money(row.recharge)}</td><td>{money(row.consumption)}</td></>}<td>{money(row.yesterday)}</td><td>{number(virtualCards(row))}</td><td>{number(physicalCards(row))}</td><td>{view==="总体"?<span className={`status ${tone}`}>{label}</span>:<div title={entityStatus.description}><span className={`status ${entityStatus.tone}`}>{entityStatus.label}</span><small className="activity-evidence">{entityStatus.evidence}</small></div>}</td></tr>})}</tbody></table></div></section><p className="data-note">{lang==="zh"?"运营数据仅供业务参考，具体数据以财务数据为准":"Operational data is for business reference only; please refer to Finance records for official figures."}</p></div></main>
+ <section className="ranking-panel" id="ranking"><header><div><p className="eyebrow">LEADERBOARD</p><h2>{t.ranking}</h2></div><div className="view-tabs">{availableViews.map(x=><button key={x} className={view===x?"selected":""} onClick={()=>{setView(x);if(x!=="总体"&&metric==="完成率")setMetric("充值金额")}}>{x==="总体"?t.overall:x==="代理商"?t.agents:t.api}</button>)}</div></header><div className="table-wrap"><table><thead><tr><th>{t.rank}</th><SortTh label={view==="总体"?"BD":view==="代理商"?t.agents:t.api} sortKey="name"/><SortTh label={t.owner} sortKey="owner"/>{view==="总体"?<><SortTh label={t.target} sortKey="target"/><SortTh label={mode==="mtd"?cumulativeLabel:periodLabel} sortKey="recharge"/><SortTh label={t.completion} sortKey="completion"/></>:isWallet?<SortTh label={mode==="mtd"?cumulativeLabel:periodLabel} sortKey="recharge"/>:<><SortTh label={mode==="mtd"?cumulativeLabel:periodLabel} sortKey="recharge"/><SortTh label={t.consumption} sortKey="consumption"/></>}<SortTh label={mode==="mtd"?dailyLabel:averageDailyLabel} sortKey="yesterday"/><SortTh label={t.virtualCards} sortKey="cardsVirtual"/><SortTh label={t.physicalCards} sortKey="cardsPhysical"/><SortTh label={view==="总体"?t.status:lang==="zh"?"活跃度":"Activity"} sortKey="status"/>{view!=="总体"&&<SortTh label={lang==="zh"?"合作开始时间":"Cooperation start"} sortKey="cooperationStart"/>}</tr></thead><tbody>{rows.map((row,i)=>{const rate=view==="总体"&&"target" in row&&row.target?row.recharge/row.target:undefined,[label,tone]=state(rate),entityStatus=activityState(row);return <tr key={`${row.name}-${row.owner}`}><td><span className={`rank ${i<3?"top":""}`}>{i+1}</span></td><td className="name-cell"><i>{row.name[0]?.toUpperCase()}</i>{view==="总体"?<b>{row.name}</b>:<AgentProfileButton name={row.name} owner={displayedOwner(row.owner,row.name)} category={view} profile={profileFor(row)} lang={lang}/>}</td><td>{displayedOwner(row.owner,row.name)}</td>{view==="总体"&&"target" in row?<><td>{money(row.target)}</td><td className="money">{money(row.recharge)}</td><td><div className="rate-cell"><b>{(rate!*100).toFixed(1)}%</b><span><i style={{width:`${Math.min(rate!*100,100)}%`}}/></span></div></td></>:isWallet?<td className="money">{money(row.recharge)}</td>:<><td className="money">{money(row.recharge)}</td><td>{money(row.consumption)}</td></>}<td>{money(row.yesterday)}</td><td>{number(virtualCards(row))}</td><td>{number(physicalCards(row))}</td><td>{view==="总体"?<span className={`status ${tone}`}>{label}</span>:<div title={entityStatus.description}><span className={`status ${entityStatus.tone}`}>{entityStatus.label}</span><small className="activity-evidence">{entityStatus.evidence}</small></div>}</td>{view!=="总体"&&<td className="cooperation-date">{profileFor(row)?.cooperationStart?.slice(0,10)??""}</td>}</tr>})}</tbody></table></div></section><p className="data-note">{lang==="zh"?"运营数据仅供业务参考，具体数据以财务数据为准":"Operational data is for business reference only; please refer to Finance records for official figures."}</p></div></main>
 }

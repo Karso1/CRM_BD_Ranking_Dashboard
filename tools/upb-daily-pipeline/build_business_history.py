@@ -118,10 +118,13 @@ def load_configuration(path: Path) -> tuple[dict[str, Client], pd.DataFrame, lis
         path,
         ["client", "Categories", "BD", "合作模式", "月份", "充值/消费量目标", "开卡目标"],
     )
-    allowed = [clean(value) for value in frame.iloc[:, 9].tolist() if clean(value)]
+    # pandas names the second BD header BD.1; columns can move when metadata is added.
+    if "BD.1" not in frame.columns:
+        raise ValueError("BD代理关系.xlsx 缺少独立的公开 BD 名单列（第二个 BD 表头）。")
+    allowed = list(dict.fromkeys(clean(value) for value in frame["BD.1"].tolist() if clean(value)))
     allowed_by_key = {key(name): name for name in allowed}
     if not allowed:
-        raise ValueError("BD代理关系.xlsx 的 J 列没有公开 BD 名单。")
+        raise ValueError("BD代理关系.xlsx 的公开 BD 名单列为空。")
 
     mapping: dict[str, Client] = {}
     conflicts: list[str] = []

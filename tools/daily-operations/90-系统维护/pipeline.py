@@ -16,6 +16,7 @@ import sys
 import time
 
 from prepare_staging import prepare
+from agent_profiles import export_profiles
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 OPERATIONS = WORKSPACE / "tools" / "daily-operations"
@@ -36,7 +37,7 @@ def code_version(platform: str) -> str:
 
 def output_hashes(output: Path) -> dict:
     return {file.name: hashlib.sha256(file.read_bytes()).hexdigest()
-        for pattern in ("*_daily_metrics.csv", "*_monthly_targets.csv") for file in output.glob(pattern)}
+        for pattern in ("*_daily_metrics.csv", "*_monthly_targets.csv", "agent_profiles.json") for file in output.glob(pattern)}
 
 
 def validated_staging(platform: str) -> dict:
@@ -47,7 +48,7 @@ def validated_staging(platform: str) -> dict:
     if receipt.get("code_version") != code_version(platform):
         raise ValueError("计算/同步代码已变化，请重新运行测试程序后再发布。")
     hashes = output_hashes(staging["output"])
-    if len(hashes) != 2 or hashes != receipt.get("outputs"):
+    if len(hashes) < 2 or hashes != receipt.get("outputs"):
         raise ValueError("测试输出在验收后发生变化，请重新运行测试程序。")
     return staging
 
@@ -71,13 +72,14 @@ def plan(platform: str, environment: str, workspace: Path = WORKSPACE) -> dict:
             "--mapping-workbook", str(mapping), "--config", str(code / "config.json"), "--output-dir", str(output)]
         sync = python + [str(code / "sync_wallet_dashboard.py"), "--csv", str(output / "wallet_daily_metrics.csv")]
     else:
+        mapping = inputs / "BD代理关系目标/BD代理关系.xlsx"
         cache = code / "cache/staging/fred_usd_hkd_daily.csv" if staging else production / "cache/fred_usd_hkd_daily.csv"
         calculate = python + [str(code / "build_business_history.py"), "--input-dir", str(inputs),
             "--config", str(inputs / "BD代理关系目标/BD代理关系.xlsx"), "--output-dir", str(output), "--fx-cache", str(cache)]
         sync = python + [str(code / "sync_business_dashboard.py"), "--daily", str(output / "business_daily_metrics.csv")]
     sync += ["--targets", str(output / f"{field}_monthly_targets.csv"), "--settings", str(settings),
         "--expected-environment", environment, "--dashboard-url", f"https://{host}.karsol.workers.dev/api/dashboard?platform={field}&refresh=1"]
-    return {"calculate": calculate, "sync": sync, "settings": settings, "output": output, "formal": formal}
+    return {"calculate": calculate, "sync": sync, "settings": settings, "output": output, "formal": formal, "mapping": mapping}
 
 
 @contextmanager
@@ -155,6 +157,7 @@ def main() -> int:
                     print("[1/3] 更新测试输入副本…", flush=True)
                     prepare(args.platform, confirm_public_real_data=True)
                 execute(execution["calculate"], "[2/3] 计算数据", log)
+                export_profiles(execution["mapping"], args.platform, execution["output"])
             if summary["code_version"] != code_version(args.platform):
                 raise RuntimeError("运行期间代码发生变化，请重新运行测试程序。")
             if staged:

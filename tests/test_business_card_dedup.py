@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -20,6 +21,16 @@ SPEC.loader.exec_module(BUSINESS)
 
 
 class BusinessCardDedupTests(unittest.TestCase):
+    def test_inserted_contact_columns_do_not_change_public_bd_list(self):
+        frame = pd.DataFrame([{'BD':'Mike','Categories':'Agent','client':'Demo','合作模式':'',
+            '邮箱':'demo@example.test','合作开始日期':'2024-12-02','月份':'202609',
+            '充值/消费量目标':'1000','开卡目标':'99','BD.1':'Mike'}])
+        with patch.object(BUSINESS,'read_matching_sheet',return_value=(frame,'Sheet2')):
+            mapping,targets,allowed=BUSINESS.load_configuration(Path('test.xlsx'))
+        self.assertEqual(allowed,['Mike'])
+        self.assertEqual(mapping['demo'].bd,'Mike')
+        self.assertEqual(set(targets.bd),{'Mike','UPay'})
+
     def test_overlapping_paid_order_counts_once_and_free_card_still_maps(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
