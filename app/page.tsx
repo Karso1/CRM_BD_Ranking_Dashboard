@@ -154,7 +154,7 @@ export default function Home(){
  const attention=[...overall].filter(x=>x.target&&x.recharge/x.target<.7).sort((a,b)=>a.recharge/a.target-b.recharge/b.target).slice(0,5);
  const monthLabel=mode==="range"?`${start} — ${end}`:(lang==="zh"?period.label:new Intl.DateTimeFormat("en-US",{year:"numeric",month:"long"}).format(new Date(`${period.id}-01T00:00:00`)));
  const tip={background:"#0c1c1f",border:"1px solid #203638",borderRadius:8,color:"#e8f5f1"};
- const go=(id:string,v?:View)=>{setNav(id);if(v)setView(v);document.getElementById(id==="dashboard"?"top":id==="trends"?"trend":"ranking")?.scrollIntoView({behavior:"smooth"})};
+ const go=(id:string,v?:View)=>{setNav(id);if(v){setView(v);setColumnSort(null)}document.getElementById(id==="dashboard"?"top":id==="trends"?"trend":"ranking")?.scrollIntoView({behavior:"smooth"})};
  const switchMonth=(id:string)=>{if(id==="all"){setMonth("all");setMode("range");setStart(firstDate);setEnd(lastDate);setOwner("全部BD");return}const next=periods.find(p=>p.id===id)!;setMonth(id);setStart(next.start);setEnd(next.end);setOwner("全部BD")};
  const switchMode=(nextMode:"mtd"|"range")=>{if(nextMode==="range"){setMode("range");setMonth("all");setStart(firstDate);setEnd(lastDate);return}const latest=periods.at(-1)!;setMode("mtd");setMonth(latest.id);setStart(latest.start);setEnd(latest.end)};
  const resetFilters=()=>{const latest=periods.at(-1)!;setMonth(latest.id);setMode("mtd");setStart(latest.start);setEnd(latest.end);setOwner("全部BD");setMetric("充值金额");setColumnSort(null);setSearch("");setView("总体")};
