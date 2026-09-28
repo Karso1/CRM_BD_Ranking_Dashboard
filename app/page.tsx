@@ -11,6 +11,7 @@ import { DashboardDatePicker, FilterSelect } from "@/components/dashboard-filter
 import { agentActivity, activityKey } from "@/lib/agent-activity";
 import { AgentProfileButton } from "@/components/agent-profile";
 import { findAgentProfile, compareCooperationStart, type AgentProfile } from "@/lib/agent-profiles";
+import { displayedOwner as publicOwner, entityIdentity } from "@/lib/owner-display";
 
 type View = "总体" | "代理商" | "API";
 type Lang = "zh" | "en";
@@ -113,14 +114,7 @@ export default function Home(){
  const activity=useMemo(()=>agentActivity(periods.flatMap(p=>p.daily),activityAsOf),[periods,activityAsOf]);
  const activityLabels=lang==="zh"?{active:"活跃",attention:"需关注",inactive:"不活跃",observing:"数据观察期"}:{active:"Active",attention:"Needs attention",inactive:"Inactive",observing:"Observing"};
  const isWallet=platform==="wallet";
- const publicWalletBds=new Set(["victor","katrina","ruslan","mike","patrick","richard","upay"]);
- const displayedOwner=(rawOwner:string,name="")=>{
-  if(!isWallet||isStaging)return rawOwner;
-  // Old snapshots may still contain internal employee or unassigned labels.
-  // The public dashboard groups both under the single UPay ownership label.
-  if(name.startsWith("UPay · "))return "UPay";
-  return publicWalletBds.has(rawOwner.toLowerCase())?rawOwner:"UPay";
- };
+ const displayedOwner=(rawOwner:string,name="")=>publicOwner(isWallet?"wallet":"business",rawOwner,name);
  const performanceLabel=isWallet?(lang==="zh"?"消费金额":"Consumption"):(lang==="zh"?"总金额":"Total amount");
  const cumulativeLabel=isWallet?(lang==="zh"?"累计消费":"Cumulative consumption"):(lang==="zh"?"累计总金额":"Cumulative total amount");
  const periodLabel=isWallet?(lang==="zh"?"周期消费":"Period consumption"):(lang==="zh"?"周期总金额":"Period total amount");
@@ -135,7 +129,14 @@ export default function Home(){
  const bds=useMemo(()=>[...new Set([...displayedOverall.map(x=>x.name),...details.map(x=>displayedOwner(x.owner,x.name))])].sort(),[displayedOverall,details]);
  const overall=displayedOverall.filter(x=>owner==="全部BD"||x.name.toLowerCase()===owner.toLowerCase());
  const ownerMatches=(rawOwner:string,name="")=>owner==="全部BD"||displayedOwner(rawOwner,name).toLowerCase()===owner.toLowerCase();
- const source=view==="总体"?overall.map(x=>({...x,owner:x.name,consumption:0})):details.filter(x=>x.type===view&&ownerMatches(x.owner,x.name));
+ const source=view==="总体"?overall.map(x=>({...x,owner:x.name,consumption:0})):(()=>{
+  const existing=details.filter(x=>x.type===view&&ownerMatches(x.owner,x.name));
+  const known=new Set(existing.map(x=>entityIdentity(platform,x.name,x.owner,x.type)));
+  const roster=profileSets[platform].filter(x=>x.type===view&&ownerMatches(x.owner,x.name))
+   .filter(x=>!known.has(entityIdentity(platform,x.name,x.owner,x.type)))
+   .map(x=>({name:x.name,owner:x.owner,type:x.type,recharge:0,consumption:0,yesterday:0,cards:0,cardsVirtual:0,cardsPhysical:0}));
+  return [...existing,...roster];
+ })();
  const profileFor=(row:{name:string;owner:string})=>view==="总体"?undefined:findAgentProfile(profileSets[platform],{name:row.name,owner:row.owner,type:view});
  const sortValue=(row:typeof source[number],key:SortKey):string|number=>{
   const rate="target" in row&&row.target?row.recharge/row.target:0;

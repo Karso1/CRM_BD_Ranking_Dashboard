@@ -1,6 +1,7 @@
 """Read optional contact fields without changing the source workbook."""
 from datetime import date, datetime, timedelta
 import json
+import re
 import unicodedata
 
 import openpyxl
@@ -8,6 +9,10 @@ import openpyxl
 
 def text(value):
     return "" if value is None else unicodedata.normalize("NFKC", str(value)).strip()
+
+
+def owner_key(value):
+    return re.sub(r"\s+", " ", re.sub(r"\.0$", "", text(value))).casefold()
 
 
 def cooperation_date(value):
@@ -40,15 +45,32 @@ def read_profiles(path, platform):
             def column(*names):
                 return next((headers.index(n) for n in names if n in headers), None)
             name_idx, owner_idx = column(name_column), column(owner_column)
+            allowed_owners = None
+            data_rows = list(rows)
+            if platform == "upb":
+                bd_columns = [index for index, header in enumerate(headers) if header == "BD"]
+                if len(bd_columns) < 2:
+                    raise ValueError("BD代理关系.xlsx 缺少独立的公开 BD 名单列（第二个 BD 表头）。")
+                allowed_idx = bd_columns[1]
+                allowed_owners = {}
+                for row in data_rows:
+                    value = row[allowed_idx] if allowed_idx < len(row) else None
+                    canonical = text(value)
+                    if canonical:
+                        allowed_owners.setdefault(owner_key(canonical), canonical)
+                if not allowed_owners:
+                    raise ValueError("BD代理关系.xlsx 的公开 BD 名单列为空。")
             category_idx = column("Categories") if platform == "upb" else None
             email_idx, date_idx = column("邮箱", "Email", "email"), column("合作开始日期", "合作开始时间", "Cooperation start")
             output = {}
-            for row_number, row in enumerate(rows, 2):
+            for row_number, row in enumerate(data_rows, 2):
                 def cell(index):
                     return row[index] if index is not None and index < len(row) else None
                 name, owner = text(cell(name_idx)), text(cell(owner_idx))
                 if not name:
                     continue
+                if allowed_owners is not None:
+                    owner = allowed_owners.get(owner_key(owner), "UPay")
                 category = "API" if text(cell(category_idx)).upper() == "API" else "代理商"
                 try:
                     started = cooperation_date(cell(date_idx))

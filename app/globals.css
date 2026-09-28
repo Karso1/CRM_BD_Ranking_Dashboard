@@ -10,6 +10,8 @@
 .agent-profile-fields{margin:4px 0 0;display:grid;gap:16px}
 .agent-profile-fields>div{display:grid;gap:6px}
 .agent-profile-fields dt{font-size:12px;color:#92aaa5}
+.chart-body .recharts-wrapper:focus:not(:focus-visible),.chart-body .recharts-surface:focus:not(:focus-visible){outline:none!important}
+.chart-body .recharts-wrapper:focus-visible,.chart-body .recharts-surface:focus-visible{outline:2px solid #58d2a5;outline-offset:-3px}
 .agent-profile-fields dd{margin:0;min-height:24px;font-size:14px;overflow-wrap:anywhere;border-bottom:1px solid #203638;padding-bottom:10px}
 .cooperation-date{font-variant-numeric:tabular-nums;color:#adc1bd}
 .activity-evidence{display:block;margin-top:5px;color:#819895;font-size:9px;font-weight:400}
