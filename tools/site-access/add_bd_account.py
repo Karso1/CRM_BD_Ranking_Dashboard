@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import stat
 import subprocess
 import tempfile
 
@@ -100,6 +101,11 @@ def main():
             json.dump(next_accounts, output, ensure_ascii=False, indent=2)
             output.write("\n")
         os.replace(temporary, RECORD)
+        if hasattr(os, "chflags") and hasattr(stat, "UF_HIDDEN"):
+            try:
+                os.chflags(RECORD, os.stat(RECORD).st_flags | stat.UF_HIDDEN)
+            except OSError:
+                pass  # Finder organization must never make an account update fail.
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
