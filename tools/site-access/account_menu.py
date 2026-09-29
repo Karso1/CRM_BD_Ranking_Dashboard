@@ -60,12 +60,12 @@ def command_for(action: str, account_type: str) -> list[str]:
     raise ValueError("选项无效，没有修改任何账号。")
 
 
-def main() -> int:
-    print("测试网站 · 账号管理\n")
+def run_once() -> int:
+    print("\n测试网站 · 账号管理")
     print("1. 新增账号\n2. 修改账号或密码\n3. 查看现有账号和权限\n0. 退出")
     action = input("请选择：").strip()
     if action == "0":
-        return 0
+        return -1
     if action == "3":
         show_accounts()
         return 0
@@ -79,6 +79,21 @@ def main() -> int:
     command = command_for(action, account_type)
     print("\n正在打开所选操作；密码输入时不会显示字符。\n", flush=True)
     return subprocess.run(command, cwd=ROOT, check=False).returncode
+
+
+def main() -> int:
+    while True:
+        try:
+            result = run_once()
+        except ValueError as error:
+            print(f"未完成：{error}")
+            result = 1
+        if result == -1:
+            return 0
+        if result:
+            print("\n本次操作未完成，请查看上面的提示。")
+        if input("\n按 Enter 继续，输入 0 退出：").strip() == "0":
+            return 0
 
 
 if __name__ == "__main__":

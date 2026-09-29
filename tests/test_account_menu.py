@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
@@ -47,6 +48,23 @@ class AccountMenuTests(unittest.TestCase):
             self.assertIn("密码：primary-secret", revealed.getvalue())
             self.assertIn("密码：manager-secret", revealed.getvalue())
             self.assertIn("密码：bd-secret", revealed.getvalue())
+
+    def test_menu_can_continue_after_an_action_and_then_exit(self):
+        with patch("builtins.input", side_effect=["3", "", "", "0"]), \
+             patch.object(menu, "show_accounts") as show, redirect_stdout(io.StringIO()):
+            self.assertEqual(menu.main(), 0)
+        show.assert_called_once()
+
+    def test_failed_action_can_return_to_menu(self):
+        with patch("builtins.input", side_effect=["bad", "", "0"]), redirect_stdout(io.StringIO()):
+            self.assertEqual(menu.main(), 0)
+
+    def test_account_update_returns_to_menu_without_reopening_program(self):
+        with patch("builtins.input", side_effect=["1", "2", "", "0"]), \
+             patch.object(menu.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run, \
+             redirect_stdout(io.StringIO()):
+            self.assertEqual(menu.main(), 0)
+        run.assert_called_once_with(["python3", "tools/site-access/add_bd_account.py", "--add"], cwd=menu.ROOT, check=False)
 
 
 if __name__ == "__main__":
