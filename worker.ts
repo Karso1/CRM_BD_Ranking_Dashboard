@@ -16,7 +16,7 @@ export default {
         try {
           const published: unknown = await env.DASHBOARD_SNAPSHOTS.get(`dashboard:${platform}:latest`, { type: "json" });
           const scoped = scopedDashboard(published, platform, principal.owner);
-          if (!scoped || scoped.environment !== "staging") return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 }));
+          if (!scoped || scoped.environment !== process.env.NEXT_PUBLIC_DEPLOYMENT_ENV) return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 }));
           return privateResponse(Response.json(scoped));
         } catch { return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 })); }
       }

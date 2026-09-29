@@ -13,6 +13,10 @@ vm.runInNewContext(source, { exports, process: { env: { NEXT_PUBLIC_DEPLOYMENT_E
   assert.equal(name, 'node:crypto'); return crypto;
 }, Request, Response, Headers, URL, URLSearchParams, TextDecoder });
 const { accessResponse, createSession, validSession, sessionPrincipal, SESSION_COOKIE, SESSION_SECONDS } = exports;
+const productionExports = {};
+vm.runInNewContext(source, { exports: productionExports, process: { env: { NEXT_PUBLIC_DEPLOYMENT_ENV: 'production' } }, require: name => {
+  assert.equal(name, 'node:crypto'); return crypto;
+}, Request, Response, Headers, URL, URLSearchParams, TextDecoder });
 const origin = 'https://staging.example.test';
 const env = () => ({ DASHBOARD_USERNAME: 'upay', DASHBOARD_PASSWORD: 'Test-password-123', DASHBOARD_SESSION_SECRET: 'random-test-signing-secret',
   DASHBOARD_BD_ACCOUNTS: JSON.stringify([{ username: 'Katrina', password: 'Katrina-password-456', owner: 'Katrina' }]),
@@ -60,6 +64,23 @@ test('additional admin has full admin access and cannot be confused with a BD se
   assert.equal(sessionPrincipal(request, settings).role, 'admin');
   assert.equal(await accessResponse(request, settings), null);
   assert.equal(sessionPrincipal(request, { ...settings, DASHBOARD_ADDITIONAL_ADMINS: '[]' }), null);
+});
+
+test('production grants the same role-specific access for added admin and BD accounts', async () => {
+  const settings = env();
+  const signIn = async (username, password) => productionExports.accessResponse(req('/access/login', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username, password }) }), settings);
+  const admin = await signIn('manager2', 'Manager-password-456');
+  assert.equal(admin.status, 303);
+  const adminReq = req('/api/dashboard?platform=wallet&refresh=1', { headers: { Cookie: admin.headers.get('Set-Cookie').split(';')[0] } });
+  assert.equal(productionExports.sessionPrincipal(adminReq, settings).role, 'admin');
+  assert.equal(await productionExports.accessResponse(adminReq, settings), null);
+  const bd = await signIn('Katrina', 'Katrina-password-456');
+  assert.equal(bd.status, 303);
+  const bdReq = req('/api/dashboard?platform=wallet&refresh=1', { headers: { Cookie: bd.headers.get('Set-Cookie').split(';')[0] } });
+  assert.equal(productionExports.sessionPrincipal(bdReq, settings).owner, 'Katrina');
+  assert.equal((await productionExports.accessResponse(bdReq, settings)).status, 403);
 });
 
 test('anonymous visitors cannot read dashboard, API, fallback scripts or RSC payloads', async () => {

@@ -37,15 +37,14 @@ def main():
     username = previous.get("用户名", "upay") if args.copy_staging else input(f"请输入用户名（直接回车保留 {previous.get('用户名', 'upay')}）：").strip() or previous.get("用户名", "upay")
     if len(username.encode("utf-16-le")) // 2 > 128 or any(ord(c) < 32 for c in username):
         raise ValueError("用户名最长 128 位，不能包含控制字符。")
-    if not production:
-        bd_record = ROOT / "tools/daily-operations/01-测试更新/BD账号.local.txt"
-        if bd_record.exists() and any(account["username"].casefold() == username.casefold()
-          for account in json.loads(bd_record.read_text(encoding="utf-8"))):
-            raise ValueError("管理员用户名不能与已有 BD 账号相同。")
-        other_admin_record = ROOT / "tools/daily-operations/01-测试更新/其他管理员账号.local.txt"
-        if other_admin_record.exists() and any(account["username"].casefold() == username.casefold()
-          for account in json.loads(other_admin_record.read_text(encoding="utf-8"))):
-            raise ValueError("UPay 主管理员用户名不能与其他管理员账号相同。")
+    bd_record = password_file.parent / "BD账号.local.txt"
+    if bd_record.exists() and any(account["username"].casefold() == username.casefold()
+      for account in json.loads(bd_record.read_text(encoding="utf-8"))):
+        raise ValueError("管理员用户名不能与已有 BD 账号相同。")
+    other_admin_record = password_file.parent / "其他管理员账号.local.txt"
+    if other_admin_record.exists() and any(account["username"].casefold() == username.casefold()
+      for account in json.loads(other_admin_record.read_text(encoding="utf-8"))):
+        raise ValueError("UPay 主管理员用户名不能与其他管理员账号相同。")
     if args.copy_staging:
         password = previous.get("访问密码")
         if not password:

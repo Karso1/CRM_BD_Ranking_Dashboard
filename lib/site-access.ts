@@ -10,7 +10,7 @@ type AdminAccount = { username: string; password: string };
 export type Principal = { role: "admin" } | { role: "bd"; owner: string; username: string };
 
 function bdAccounts(env: AccessEnv): BdAccount[] {
-  if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== "staging" || !env.DASHBOARD_BD_ACCOUNTS) return [];
+  if (!env.DASHBOARD_BD_ACCOUNTS) return [];
   try {
     const parsed: unknown = JSON.parse(env.DASHBOARD_BD_ACCOUNTS);
     if (!Array.isArray(parsed) || parsed.length > 50) return [];
@@ -22,7 +22,7 @@ function bdAccounts(env: AccessEnv): BdAccount[] {
 }
 
 function additionalAdmins(env: AccessEnv): AdminAccount[] {
-  if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== "staging" || !env.DASHBOARD_ADDITIONAL_ADMINS) return [];
+  if (!env.DASHBOARD_ADDITIONAL_ADMINS) return [];
   try {
     const parsed: unknown = JSON.parse(env.DASHBOARD_ADDITIONAL_ADMINS);
     if (!Array.isArray(parsed) || parsed.length > 20) return [];

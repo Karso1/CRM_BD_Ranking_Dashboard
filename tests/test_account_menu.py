@@ -27,6 +27,10 @@ class AccountMenuTests(unittest.TestCase):
             self.assertNotIn("production", " ".join(command))
         with self.assertRaises(ValueError):
             menu.command_for("1", "3")
+        self.assertEqual(menu.command_for("1", "2", "production"),
+                         ["python3", "tools/site-access/add_bd_account.py", "--add", "--environment", "production"])
+        self.assertEqual(menu.command_for("2", "1", "production"),
+                         ["python3", "tools/site-access/change_password.py", "--environment", "production"])
 
     def test_inventory_masks_passwords_until_explicit_confirmation(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -48,6 +52,15 @@ class AccountMenuTests(unittest.TestCase):
             self.assertIn("密码：primary-secret", revealed.getvalue())
             self.assertIn("密码：manager-secret", revealed.getvalue())
             self.assertIn("密码：bd-secret", revealed.getvalue())
+
+    def test_production_inventory_reads_only_production_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder) / "02-正式发布"
+            directory.mkdir()
+            (directory / "正式网站访问密码.local.txt").write_text("用户名：prod\n访问密码：prod-secret\n")
+            accounts = menu.recorded_accounts(directory)
+            self.assertEqual(len(accounts), 1)
+            self.assertEqual(accounts[0]["role"], "主管理员")
 
     def test_menu_can_continue_after_an_action_and_then_exit(self):
         with patch("builtins.input", side_effect=["3", "", "", "0"]), \
