@@ -27,6 +27,10 @@ for (const platform of ['business', 'wallet']) {
   assert.equal(response.status, 200); full[platform] = await response.json();
 }
 const cookie = await login(account);
+response = await read('/upay-logo.png', { headers: { Cookie: cookie } });
+assert.equal(response.status, 200);
+assert.match(response.headers.get('Content-Type') ?? '', /image\/png/);
+assert.equal(new Uint8Array(await response.arrayBuffer())[0], 137);
 response = await read('/', { headers: { Cookie: cookie } });
 assert.equal(response.status, 200);
 const html = await response.text();

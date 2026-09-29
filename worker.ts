@@ -20,7 +20,7 @@ export default {
           return privateResponse(Response.json(scoped));
         } catch { return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 })); }
       }
-      if (url.pathname === "/" || url.pathname.startsWith("/_next/") || url.pathname === "/vinext-client-entry-manifest.json") {
+      if (url.pathname === "/" || url.pathname === "/upay-logo.png" || url.pathname.startsWith("/_next/") || url.pathname === "/vinext-client-entry-manifest.json") {
         if (url.pathname !== "/") {
           const asset = await env.ASSETS.fetch(request);
           if (asset.status !== 404) return privateResponse(asset);
