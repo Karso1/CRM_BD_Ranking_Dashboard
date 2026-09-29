@@ -1,8 +1,49 @@
 """One simple entry point for staging account management."""
+import json
 from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+RECORD_DIR = ROOT / "tools/daily-operations/01-测试更新"
+
+
+def recorded_accounts(record_dir: Path = RECORD_DIR) -> list[dict[str, str]]:
+    """Read local staging records only; Cloudflare never returns secret values."""
+    accounts = []
+    primary = record_dir / "测试网站访问密码.local.txt"
+    if primary.exists():
+        fields = dict(line.split("：", 1) for line in primary.read_text(encoding="utf-8").splitlines() if "：" in line)
+        if not fields.get("用户名") or not fields.get("访问密码"):
+            raise ValueError("UPay 主管理员本机记录不完整，无法列出账号。")
+        accounts.append({"username": fields["用户名"], "password": fields["访问密码"], "role": "主管理员", "owner": "全部数据"})
+    for filename, role in (("其他管理员账号.local.txt", "管理员"), ("BD账号.local.txt", "BD")):
+        path = record_dir / filename
+        if not path.exists():
+            continue
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(rows, list):
+            raise ValueError(f"{filename} 格式异常，无法列出账号。")
+        for row in rows:
+            if not isinstance(row, dict) or not isinstance(row.get("username"), str) or not isinstance(row.get("password"), str) or (role == "BD" and not isinstance(row.get("owner"), str)):
+                raise ValueError(f"{filename} 格式异常，无法列出账号。")
+            accounts.append({"username": row["username"], "password": row["password"], "role": role,
+                             "owner": row["owner"] if role == "BD" else "全部数据"})
+    return accounts
+
+
+def show_accounts(record_dir: Path = RECORD_DIR) -> None:
+    accounts = recorded_accounts(record_dir)
+    print(f"\n本机保存的测试站账号：{len(accounts)} 个")
+    print("注意：这是本机记录，无法从 Cloudflare 读取或核对当前密码。\n")
+    for index, account in enumerate(accounts, 1):
+        print(f"{index}. {account['username']} ｜ {account['role']} ｜ {account['owner']} ｜ 密码：******")
+    if not accounts:
+        return
+    if input("\n若要在此窗口显示明文密码，请输入“显示”；直接回车则不显示：").strip() != "显示":
+        return
+    print("\n请注意屏幕旁的人和终端历史记录；不要截图或分享此窗口。")
+    for index, account in enumerate(accounts, 1):
+        print(f"{index}. {account['username']} ｜ 密码：{account['password']}")
 
 
 def command_for(action: str, account_type: str) -> list[str]:
@@ -21,9 +62,12 @@ def command_for(action: str, account_type: str) -> list[str]:
 
 def main() -> int:
     print("测试网站 · 账号管理\n")
-    print("1. 新增账号\n2. 修改账号或密码\n0. 退出")
+    print("1. 新增账号\n2. 修改账号或密码\n3. 查看现有账号和权限\n0. 退出")
     action = input("请选择：").strip()
     if action == "0":
+        return 0
+    if action == "3":
+        show_accounts()
         return 0
     if action == "1":
         print("\n1. 管理员（查看全部数据）\n2. BD（只查看绑定 BD 的数据）")
