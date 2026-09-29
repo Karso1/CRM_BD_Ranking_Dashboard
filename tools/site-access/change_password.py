@@ -42,6 +42,10 @@ def main():
         if bd_record.exists() and any(account["username"].casefold() == username.casefold()
           for account in json.loads(bd_record.read_text(encoding="utf-8"))):
             raise ValueError("管理员用户名不能与已有 BD 账号相同。")
+        other_admin_record = ROOT / "tools/daily-operations/01-测试更新/其他管理员账号.local.txt"
+        if other_admin_record.exists() and any(account["username"].casefold() == username.casefold()
+          for account in json.loads(other_admin_record.read_text(encoding="utf-8"))):
+            raise ValueError("UPay 主管理员用户名不能与其他管理员账号相同。")
     if args.copy_staging:
         password = previous.get("访问密码")
         if not password:

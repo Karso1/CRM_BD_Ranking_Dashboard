@@ -3,9 +3,10 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 export const SESSION_COOKIE = "__Host-upay_session";
 export const SESSION_SECONDS = 7 * 24 * 60 * 60;
 type CredentialEnv = Pick<Cloudflare.Env, "DASHBOARD_USERNAME" | "DASHBOARD_PASSWORD" | "DASHBOARD_SESSION_SECRET">;
-type AccessEnv = CredentialEnv & Pick<Cloudflare.Env, "DASHBOARD_BD_ACCOUNTS" |
+type AccessEnv = CredentialEnv & Pick<Cloudflare.Env, "DASHBOARD_BD_ACCOUNTS" | "DASHBOARD_ADDITIONAL_ADMINS" |
   "LOGIN_RATE_LIMITER" | "WALLET_SOURCE_URL" | "DASHBOARD_SOURCE_URL">;
 type BdAccount = { username: string; password: string; owner: string };
+type AdminAccount = { username: string; password: string };
 export type Principal = { role: "admin" } | { role: "bd"; owner: string; username: string };
 
 function bdAccounts(env: AccessEnv): BdAccount[] {
@@ -18,6 +19,23 @@ function bdAccounts(env: AccessEnv): BdAccount[] {
         String((item as Record<string, unknown>)[key]).length > 0 && String((item as Record<string, unknown>)[key]).length <= 128))) return [];
     return parsed as BdAccount[];
   } catch { return []; }
+}
+
+function additionalAdmins(env: AccessEnv): AdminAccount[] {
+  if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== "staging" || !env.DASHBOARD_ADDITIONAL_ADMINS) return [];
+  try {
+    const parsed: unknown = JSON.parse(env.DASHBOARD_ADDITIONAL_ADMINS);
+    if (!Array.isArray(parsed) || parsed.length > 20) return [];
+    if (!parsed.every(item => item && typeof item === "object" &&
+      ["username", "password"].every(key => typeof (item as Record<string, unknown>)[key] === "string" &&
+        String((item as Record<string, unknown>)[key]).length > 0 && String((item as Record<string, unknown>)[key]).length <= 128))) return [];
+    return parsed as AdminAccount[];
+  } catch { return []; }
+}
+
+function adminAccountEnv(env: AccessEnv, account: AdminAccount): CredentialEnv {
+  return { DASHBOARD_USERNAME: account.username, DASHBOARD_PASSWORD: account.password,
+    DASHBOARD_SESSION_SECRET: env.DASHBOARD_SESSION_SECRET };
 }
 
 function accountEnv(env: AccessEnv, account: BdAccount): CredentialEnv {
@@ -58,6 +76,9 @@ export function validSession(request: Request, env: CredentialEnv, now = Date.no
 
 export function sessionPrincipal(request: Request, env: AccessEnv): Principal | null {
   if (validSession(request, env)) return { role: "admin" };
+  for (const account of additionalAdmins(env)) {
+    if (validSession(request, adminAccountEnv(env, account))) return { role: "admin" };
+  }
   for (const account of bdAccounts(env)) {
     if (validSession(request, accountEnv(env, account))) {
       return { role: "bd", owner: account.owner, username: account.username };
@@ -180,12 +201,15 @@ export async function accessResponse(request: Request, env: AccessEnv): Promise<
     const username = fields.get("username") ?? "";
     const password = fields.get("password") ?? "";
     const account = bdAccounts(env).find(item => equalSecret(username, item.username));
+    const extraAdmin = additionalAdmins(env).find(item => equalSecret(username, item.username));
     const adminMatch = equalSecret(username, env.DASHBOARD_USERNAME) && equalSecret(password, env.DASHBOARD_PASSWORD);
+    const extraAdminMatch = extraAdmin && equalSecret(password, extraAdmin.password);
     const bdMatch = account && equalSecret(password, account.password);
-    if (!username || username.length > 128 || !password || password.length > 128 || (!adminMatch && !bdMatch)) {
+    if (!username || username.length > 128 || !password || password.length > 128 || (!adminMatch && !extraAdminMatch && !bdMatch)) {
       return loginPage(lang, "invalid", 401);
     }
-    return redirect("/", `${SESSION_COOKIE}=${createSession(adminMatch ? env : accountEnv(env, account!))}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
+    const credential = adminMatch ? env : extraAdminMatch ? adminAccountEnv(env, extraAdmin!) : accountEnv(env, account!);
+    return redirect("/", `${SESSION_COOKIE}=${createSession(credential)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
   }
   const principal = sessionPrincipal(request, env);
   if (url.pathname === "/access") {

@@ -44,6 +44,20 @@ class BdCredentialTests(unittest.TestCase):
             run.assert_not_called()
             self.assertEqual(record.read_text(), previous)
 
+    def test_interactive_add_binds_exact_existing_bd_and_preserves_old_account(self):
+        with tempfile.TemporaryDirectory() as folder:
+            record = Path(folder) / "bd.local.txt"
+            previous = {"username": "Katrina", "password": "old-password-123", "owner": "Katrina"}
+            record.write_text(json.dumps([previous]))
+            with patch.object(bd, "RECORD", record), patch("sys.argv", ["add_bd_account.py", "--add"]), \
+                 patch("builtins.input", side_effect=["victor", "victor-login"]), \
+                 patch.object(bd.getpass, "getpass", side_effect=["new-password-123", "new-password-123"]), \
+                 patch.object(bd.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+                bd.main()
+            accounts = json.loads(json.loads(run.call_args_list[0].kwargs["input"])["DASHBOARD_BD_ACCOUNTS"])
+            self.assertEqual(accounts[0], previous)
+            self.assertEqual(accounts[1], {"username": "victor-login", "password": "new-password-123", "owner": "Victor"})
+
 
 if __name__ == "__main__":
     unittest.main()
