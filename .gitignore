@@ -66,3 +66,5 @@ next-env.d.ts
 __pycache__/
 *.pyc
 *.tsbuildinfo
+# Local site access password, never published or committed.
+*.local.txt

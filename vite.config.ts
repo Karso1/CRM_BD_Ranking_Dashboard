@@ -21,11 +21,19 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
 const localBindingConfig = {
-  ...(process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === "staging"
-    ? { name: "upay-bd-ranking-staging" }
-    : {}),
-  main: "vinext/server/fetch-handler",
+  name: deploymentEnv === "staging" ? "upay-bd-ranking-staging" : "upay-bd-ranking",
+  main: "worker.ts",
   compatibility_flags: ["nodejs_compat"],
+  // Bundled dashboard snapshots are sensitive too: authenticate assets before
+  // Cloudflare serves them, not just HTML and /api/dashboard.
+  ...({
+    assets: { binding: "ASSETS", run_worker_first: true },
+    secrets: { required: ["DASHBOARD_USERNAME", "DASHBOARD_PASSWORD", "DASHBOARD_SESSION_SECRET"] },
+  }),
+  ratelimits: [{
+    name: "LOGIN_RATE_LIMITER", namespace_id: deploymentEnv === "staging" ? "2026092801" : "2026092901",
+    simple: { limit: 10, period: 60 as const },
+  }],
   d1_databases: d1
     ? [
         {

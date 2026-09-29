@@ -2,7 +2,7 @@
 
 测试网站：[https://upay-bd-ranking-staging.karsol.workers.dev](https://upay-bd-ranking-staging.karsol.workers.dev)
 
-**访问与数据说明：** 按用户决定，staging Worker 保持公开访问，不启用 Cloudflare Access。任何拿到网址的人都可以查看网站展示的真实运营汇总数据。原始导出、卡号/订单明细和同步密钥仍保留在本机、私有 Google Sheet 或 Worker secret 中，不写入网页代码。
+**访问与数据说明：** 测试与正式 Worker 均使用共用用户名和密码入口，无需个人账号或邮箱；Worker 同时验证页面、静态文件和数据接口的访问权限。密码保存在 Worker Secret，修改方法见 [网站访问密码说明](网站访问密码说明.md)。原始导出、卡号/订单明细和同步密钥仍保留在本机、私有 Google Sheet 或 Worker secret 中，不写入网页代码。
 
 ## 生产与测试的边界
 
@@ -27,14 +27,14 @@
 
 不要把密钥放进 Git、截图、聊天记录或公开分享链接。测试数据库和 Apps Script 必须保持独立于生产。
 
-## 如何更新公开测试环境
+## 如何更新测试环境
 
-运行操作台 `tools/daily-operations/01-测试更新/UPW-测试更新.command` 或 `UPB-测试更新.command` 时，程序从 `03-原始数据/` 将当前原始文件镜像到以下 Git 忽略目录，再计算并写入独立 staging 数据库。沿用用户对公开测试真实汇总数据的授权，不再重复要求输入 YES：
+运行操作台 `tools/daily-operations/01-测试更新/UPW-测试更新.command` 或 `UPB-测试更新.command` 时，程序从 `03-原始数据/` 将当前原始文件镜像到以下 Git 忽略目录，再计算并写入独立 staging 数据库。沿用用户对使用真实汇总数据测试的授权，不再重复要求输入 YES；更新程序用原有同步密钥，不需要输入网站访问密码：
 
 - `tools/upw-daily-pipeline/staging-inputs/total data/`，并将测试用 `代理关系及月份目标.xlsx` 放在 `staging-inputs/` 根目录。
 - `tools/upb-daily-pipeline/staging-inputs/`，保持 `开卡`、`手动开卡`、`充值数据`、`消费数据`、`BD代理关系目标/BD代理关系.xlsx` 的相对目录结构。
 
-这套流程使用真实输入验证计算，但只写测试表和测试 Worker，不改正式数据库。即使测试网站公开，提交数据前仍会检查 Apps Script 返回的 `environment=staging`，并在写入后校验数据和刷新测试 Worker 缓存；任何环境不匹配都会在 POST 写入前停止。
+这套流程使用真实输入验证计算，但只写测试表和测试 Worker，不改正式数据库。提交数据前仍会检查 Apps Script 返回的 `environment=staging`，并在写入后校验数据和刷新测试 Worker 缓存；任何环境不匹配都会在 POST 写入前停止。
 
 ## 网页代码更新流程
 

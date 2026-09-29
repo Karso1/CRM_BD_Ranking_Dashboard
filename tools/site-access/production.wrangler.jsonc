@@ -1,0 +1,6 @@
+// Secret management only. Deploy through npm run deploy:production.
+{
+  "name": "upay-bd-ranking",
+  "account_id": "e9b9928f1afb28aa84dc75c92aaf69ef",
+  "compatibility_date": "2026-05-15"
+}

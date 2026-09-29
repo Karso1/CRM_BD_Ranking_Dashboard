@@ -51,7 +51,7 @@ Cloudflare Worker（服务器端私密读取）
 
 ## 测试环境
 
-测试网站为 [upay-bd-ranking-staging.karsol.workers.dev](https://upay-bd-ranking-staging.karsol.workers.dev)。它有独立的 Google Sheet、Apps Script 地址、本地同步配置和计算输出。按用户决定，测试站保持公开并使用真实业务汇总数据，启动器沿用该授权。测试网站/数据更新步骤见 [测试环境操作说明](docs/STAGING_ENVIRONMENT_CN.md)。发生读取超时时可运行对应环境的“仅验收”入口，无需重新计算上传。
+测试网站为 [upay-bd-ranking-staging.karsol.workers.dev](https://upay-bd-ranking-staging.karsol.workers.dev)。它有独立的 Google Sheet、Apps Script 地址、本地同步配置和计算输出，使用真实业务汇总数据。测试站与正式站现均使用共用用户名和密码保护页面、静态文件和数据接口，密码修改见 [网站访问密码说明](docs/网站访问密码说明.md)。数据更新步骤见 [测试环境操作说明](docs/STAGING_ENVIRONMENT_CN.md)。发生读取超时时可运行对应环境的“仅验收”入口，无需重新计算上传。
 
 ## 哪些内容可以修改？
 

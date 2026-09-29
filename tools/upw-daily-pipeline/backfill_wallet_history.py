@@ -172,6 +172,20 @@ def apply_range(frame: pd.DataFrame, date_column: str, start: str | None, end: s
     return output
 
 
+def apply_owner_exceptions(population: pd.DataFrame) -> pd.DataFrame:
+    """Direct-parent exclusion from Victor's master-UID attribution.
+
+    Keep the agent identity and all activity; only move the BD attribution.
+    Explicit mappings to other BDs remain authoritative.
+    """
+    population = population.copy()
+    excluded = ((population.parent_uid == "34716037")
+                & (population.master_bd.fillna("").str.casefold() == "victor")
+                & (population.bd.fillna("").str.casefold() == "victor"))
+    population.loc[excluded, "bd"] = "UPay"
+    return population
+
+
 def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path, config: dict, start: str | None, end: str | None) -> Path:
     relation_path, cards_path, transaction_paths = source_files(input_dir)
     mapping, monthly_targets, allowed_bds = load_configuration(configuration_book)
@@ -194,6 +208,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     # has not been configured separately.
     population["bd"] = population.parent_bd.combine_first(population.master_bd)
     population["agent"] = population.parent_agent.combine_first(population.master_agent)
+    population = apply_owner_exceptions(population)
     mapped_users = population[population.bd.notna()].copy()
     # Keep every user that can be related to a master UID. Transactions with an
     # unknown master (or no relation row) are deliberately retained later as

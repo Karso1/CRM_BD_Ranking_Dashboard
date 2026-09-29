@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
-import { Activity, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Download, LayoutDashboard, RefreshCw, RotateCcw, Search, UsersRound, Waypoints, Zap } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Download, LayoutDashboard, LogOut, RefreshCw, RotateCcw, Search, UsersRound, Waypoints, Zap } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import dashboardData from "./dashboard-data.json";
 import walletData from "./wallet-data.json";
@@ -39,6 +39,10 @@ const words = {
 } as const;
 
 function Kpi({label,value,hint,icon,accent=false}:{label:string;value:string;hint:string;icon:React.ReactNode;accent?:boolean}){return <article className="kpi"><div><p>{label}</p><strong className={accent?"accent":""}>{value}</strong><span>{hint}</span></div><i>{icon}</i></article>}
+
+function clearSiteCache(){
+ try{for(const key of Object.keys(localStorage))if(key.startsWith(`upay-dashboard:${isStaging?"staging":"production"}:`))localStorage.removeItem(key)}catch{/* Storage may be disabled. */}
+}
 
 export default function Home(){
  const initialPeriod=fallbackPeriods.business.at(-1)!;
@@ -81,6 +85,10 @@ export default function Home(){
      response=await fetch(`/api/dashboard?platform=${nextPlatform}`,{cache:"no-store",signal:controller.signal});
     }
    }else response=await fetch(`/api/dashboard?platform=${nextPlatform}`,{cache:"no-store",signal:controller.signal});
+   if(response.status===401){
+    clearSiteCache();
+    window.location.replace("/access");return;
+   }
    if(!response.ok)throw new Error(`Dashboard request failed (${response.status})`);
    const payload=await response.json() as DashboardPayload;
    const nextPeriods=payload[nextPlatform]?.periods;
@@ -102,6 +110,11 @@ export default function Home(){
   window.addEventListener("online",update);document.addEventListener("visibilitychange",update);
   return()=>{disposed=true;requestSequence.current++;activeRequest.current?.abort();activeRequest.current=null;window.clearTimeout(initial);window.clearInterval(interval);window.removeEventListener("online",update);document.removeEventListener("visibilitychange",update)};
  },[syncData,platform]);
+ useEffect(()=>{
+  const checkBackNavigation=(event:PageTransitionEvent)=>{if(event.persisted)window.location.reload()};
+  window.addEventListener("pageshow",checkBackNavigation);
+  return()=>window.removeEventListener("pageshow",checkBackNavigation);
+ },[]);
  // Entity views have no configured goals; reset the aggregate-only metric.
  // eslint-disable-next-line react-hooks/set-state-in-effect
  useEffect(()=>{if(view!=="总体"&&metric==="完成率")setMetric("充值金额")},[view,metric]);
@@ -178,7 +191,7 @@ export default function Home(){
   return {label:activityLabels[status],tone:status==="active"?"green":status==="attention"?"amber":"neutral",evidence,description};
  };
  return <main className="dashboard-shell" id="top"><aside className="side-nav"><div className="brand"><Image src="/upay-logo.png" alt="UPay" width={31} height={31}/><strong>UPay</strong></div><p className="nav-caption">{lang==="zh"?"快速定位":"QUICK JUMP"}</p><nav><button className={`nav-link ${nav==="dashboard"?"active":""}`} onClick={()=>go("dashboard","总体")}><LayoutDashboard size={18}/>{t.dashboard}</button><button className={`nav-link ${nav==="team"?"active":""}`} onClick={()=>go("team","总体")}><UsersRound size={18}/>{t.team}</button><button className={`nav-link ${nav==="entities"?"active":""}`} onClick={()=>go("entities","代理商")}><Waypoints size={18}/>{isWallet?(lang==="zh"?"代理商排名":"Agent ranking"):t.entities}</button><button className={`nav-link ${nav==="trends"?"active":""}`} onClick={()=>go("trends")}><BarChart3 size={18}/>{t.trends}</button></nav></aside>
- <div className="workspace"><header className="topbar"><div className="title-block"><p className="eyebrow">UP OPERATIONS · {isWallet?"UPAY WALLET":"UP BUSINESS"}{isStaging&&<span className="staging-badge">{lang==="zh"?"测试环境":"STAGING"}</span>}</p><h1><em>{lang==="zh"?"趋势":"Trend"}</em> {lang==="zh"?"洞察":"Intelligence"}</h1><p className="subtitle">{t.sub}</p></div><div className="topbar-actions"><div className="platform-switch" aria-label={lang==="zh"?"平台切换":"Platform switch"}><button className={!isWallet?"selected":""} onClick={()=>switchPlatform("business")}>UP Business</button><button className={isWallet?"selected":""} onClick={()=>switchPlatform("wallet")}>UPay Wallet</button></div><button className="language-button" aria-label={lang==="zh"?"切换为英文":"Switch to Chinese"} onClick={()=>setLang(lang==="zh"?"en":"zh")}>{t.language}</button>{syncing&&<span className="sync-status" role="status" aria-live="polite">{lang==="zh"?"正在核对最新数据…":"Checking latest data…"}</span>}<button className="icon-button" aria-label={lang==="zh"?"刷新数据":"Refresh dashboard data"} title={syncFailed?(lang==="zh"?"最新数据暂未核对成功，点击重试；当前保留上次数据":"Latest check failed. Click to retry; previous data is retained."):(lang==="zh"?"重新读取所选平台数据":"Refresh selected platform data")} onClick={()=>void syncData(platform,true)} disabled={syncing}><RefreshCw size={17} className={syncing?"spin":""}/></button><button className="export-button" onClick={()=>window.print()}><Download size={17}/><span>{t.export}</span></button></div></header>
+ <div className="workspace"><header className="topbar"><div className="title-block"><p className="eyebrow">UP OPERATIONS · {isWallet?"UPAY WALLET":"UP BUSINESS"}{isStaging&&<span className="staging-badge">{lang==="zh"?"测试环境":"STAGING"}</span>}</p><h1><em>{lang==="zh"?"趋势":"Trend"}</em> {lang==="zh"?"洞察":"Intelligence"}</h1><p className="subtitle">{t.sub}</p></div><div className="topbar-actions"><div className="platform-switch" aria-label={lang==="zh"?"平台切换":"Platform switch"}><button className={!isWallet?"selected":""} onClick={()=>switchPlatform("business")}>UP Business</button><button className={isWallet?"selected":""} onClick={()=>switchPlatform("wallet")}>UPay Wallet</button></div><button className="language-button" aria-label={lang==="zh"?"切换为英文":"Switch to Chinese"} onClick={()=>setLang(lang==="zh"?"en":"zh")}>{t.language}</button>{syncing&&<span className="sync-status" role="status" aria-live="polite">{lang==="zh"?"正在核对最新数据…":"Checking latest data…"}</span>}<button className="icon-button" aria-label={lang==="zh"?"刷新数据":"Refresh dashboard data"} title={syncFailed?(lang==="zh"?"最新数据暂未核对成功，点击重试；当前保留上次数据":"Latest check failed. Click to retry; previous data is retained."):(lang==="zh"?"重新读取所选平台数据":"Refresh selected platform data")} onClick={()=>void syncData(platform,true)} disabled={syncing}><RefreshCw size={17} className={syncing?"spin":""}/></button><button className="export-button" onClick={()=>window.print()}><Download size={17}/><span>{t.export}</span></button>{<form method="post" action="/access/logout" onSubmit={clearSiteCache}><button className="icon-button" type="submit" aria-label={lang==="zh"?"退出登录":"Sign out"} title={lang==="zh"?"退出登录":"Sign out"}><LogOut size={17}/></button></form>}</div></header>
  <section className="control-row">
   <div className="filter-controls">
    <label className="filter-field"><span>{t.month}</span><FilterSelect ariaLabel={t.month} value={month} onChange={switchMonth} options={[{value:"all",label:t.allPeriods},...periods.map(p=>({value:p.id,label:lang==="zh"?p.label:new Intl.DateTimeFormat("en-US",{year:"numeric",month:"long"}).format(new Date(`${p.id}-01T00:00:00`))}))]}/></label>
