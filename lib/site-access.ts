@@ -2,15 +2,35 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 
 export const SESSION_COOKIE = "__Host-upay_session";
 export const SESSION_SECONDS = 7 * 24 * 60 * 60;
-type AccessEnv = Pick<Cloudflare.Env, "DASHBOARD_USERNAME" | "DASHBOARD_PASSWORD" | "DASHBOARD_SESSION_SECRET" |
+type CredentialEnv = Pick<Cloudflare.Env, "DASHBOARD_USERNAME" | "DASHBOARD_PASSWORD" | "DASHBOARD_SESSION_SECRET">;
+type AccessEnv = CredentialEnv & Pick<Cloudflare.Env, "DASHBOARD_BD_ACCOUNTS" |
   "LOGIN_RATE_LIMITER" | "WALLET_SOURCE_URL" | "DASHBOARD_SOURCE_URL">;
+type BdAccount = { username: string; password: string; owner: string };
+export type Principal = { role: "admin" } | { role: "bd"; owner: string; username: string };
+
+function bdAccounts(env: AccessEnv): BdAccount[] {
+  if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== "staging" || !env.DASHBOARD_BD_ACCOUNTS) return [];
+  try {
+    const parsed: unknown = JSON.parse(env.DASHBOARD_BD_ACCOUNTS);
+    if (!Array.isArray(parsed) || parsed.length > 50) return [];
+    if (!parsed.every(item => item && typeof item === "object" &&
+      ["username", "password", "owner"].every(key => typeof (item as Record<string, unknown>)[key] === "string" &&
+        String((item as Record<string, unknown>)[key]).length > 0 && String((item as Record<string, unknown>)[key]).length <= 128))) return [];
+    return parsed as BdAccount[];
+  } catch { return []; }
+}
+
+function accountEnv(env: AccessEnv, account: BdAccount): CredentialEnv {
+  return { DASHBOARD_USERNAME: account.username, DASHBOARD_PASSWORD: account.password,
+    DASHBOARD_SESSION_SECRET: env.DASHBOARD_SESSION_SECRET };
+}
 
 function equalSecret(a: string, b: string): boolean {
   const hash = (value: string) => createHash("sha256").update(value).digest();
   return timingSafeEqual(hash(a), hash(b));
 }
 
-function signature(payload: string, env: AccessEnv): string {
+function signature(payload: string, env: CredentialEnv): string {
   // A separate random secret prevents offline password guessing from cookies.
   // Deriving the key from the password also revokes sessions when it changes.
   const key = createHmac("sha256", env.DASHBOARD_SESSION_SECRET!)
@@ -18,12 +38,12 @@ function signature(payload: string, env: AccessEnv): string {
   return createHmac("sha256", key).update(payload).digest("base64url");
 }
 
-export function createSession(env: AccessEnv, now = Date.now()): string {
+export function createSession(env: CredentialEnv, now = Date.now()): string {
   const payload = `v1.${Math.floor(now / 1000) + SESSION_SECONDS}.${randomBytes(24).toString("base64url")}`;
   return `${payload}.${signature(payload, env)}`;
 }
 
-export function validSession(request: Request, env: AccessEnv, now = Date.now()): boolean {
+export function validSession(request: Request, env: CredentialEnv, now = Date.now()): boolean {
   if (!env.DASHBOARD_USERNAME || !env.DASHBOARD_PASSWORD || !env.DASHBOARD_SESSION_SECRET) return false;
   const cookies = (request.headers.get("Cookie") ?? "").split(";")
     .map(value => value.trim()).filter(value => value.startsWith(`${SESSION_COOKIE}=`));
@@ -34,6 +54,16 @@ export function validSession(request: Request, env: AccessEnv, now = Date.now())
   const expires = Number(parts[1]), seconds = Math.floor(now / 1000);
   return expires > seconds && expires <= seconds + SESSION_SECONDS &&
     equalSecret(parts[3], signature(parts.slice(0, 3).join("."), env));
+}
+
+export function sessionPrincipal(request: Request, env: AccessEnv): Principal | null {
+  if (validSession(request, env)) return { role: "admin" };
+  for (const account of bdAccounts(env)) {
+    if (validSession(request, accountEnv(env, account))) {
+      return { role: "bd", owner: account.owner, username: account.username };
+    }
+  }
+  return null;
 }
 
 export function privateResponse(response: Response): Response {
@@ -109,7 +139,7 @@ export async function accessResponse(request: Request, env: AccessEnv): Promise<
   const url = new URL(request.url);
   const lang: Language = url.searchParams.get("lang") === "zh" ? "zh" : "en";
   // Only the public brand asset is exempt; dashboard bundles remain protected.
-  if (url.pathname === "/upay-logo.png" && ["GET", "HEAD"].includes(request.method)) return null;
+  if (["/upay-logo.png", "/bd-dashboard.js"].includes(url.pathname) && ["GET", "HEAD"].includes(request.method)) return null;
   if (trustedSync(request, env)) return null;
   if (!env.DASHBOARD_USERNAME || !env.DASHBOARD_PASSWORD || !env.DASHBOARD_SESSION_SECRET) {
     return privateResponse(new Response(lang === "zh" ? "登录尚未配置，请联系管理员。" : "Sign-in is not configured. Please contact the administrator.", { status: 503 }));
@@ -149,19 +179,25 @@ export async function accessResponse(request: Request, env: AccessEnv): Promise<
     const fields = new URLSearchParams(body);
     const username = fields.get("username") ?? "";
     const password = fields.get("password") ?? "";
-    const userMatches = equalSecret(username, env.DASHBOARD_USERNAME);
-    const passwordMatches = equalSecret(password, env.DASHBOARD_PASSWORD);
-    if (!username || username.length > 128 || !password || password.length > 128 || !userMatches || !passwordMatches) {
+    const account = bdAccounts(env).find(item => equalSecret(username, item.username));
+    const adminMatch = equalSecret(username, env.DASHBOARD_USERNAME) && equalSecret(password, env.DASHBOARD_PASSWORD);
+    const bdMatch = account && equalSecret(password, account.password);
+    if (!username || username.length > 128 || !password || password.length > 128 || (!adminMatch && !bdMatch)) {
       return loginPage(lang, "invalid", 401);
     }
-    return redirect("/", `${SESSION_COOKIE}=${createSession(env)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
+    return redirect("/", `${SESSION_COOKIE}=${createSession(adminMatch ? env : accountEnv(env, account!))}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
   }
-  const authenticated = validSession(request, env);
+  const principal = sessionPrincipal(request, env);
   if (url.pathname === "/access") {
     if (!["GET", "HEAD"].includes(request.method)) return privateResponse(new Response("Method not allowed", { status: 405 }));
-    return authenticated ? redirect("/") : loginPage(lang);
+    return principal ? redirect("/") : loginPage(lang);
   }
-  if (authenticated) return null;
+  if (principal?.role === "admin") return null;
+  if (principal?.role === "bd") {
+    if (!request.headers.has("RSC") && ["GET", "HEAD"].includes(request.method) &&
+      (url.pathname === "/" || (url.pathname === "/api/dashboard" && url.searchParams.get("refresh") !== "1"))) return null;
+    return privateResponse(Response.json({ error: "Forbidden." }, { status: 403 }));
+  }
   if (url.pathname.startsWith("/api/") || /\.[a-z0-9]+$/i.test(url.pathname) || request.headers.has("RSC")) {
     return privateResponse(Response.json({ error: "Authentication required." }, { status: 401 }));
   }

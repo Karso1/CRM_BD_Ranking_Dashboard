@@ -1,10 +1,30 @@
 import handler from "vinext/server/fetch-handler";
 import { accessResponse, privateResponse } from "./lib/site-access";
+import { sessionPrincipal } from "./lib/site-access";
+import { scopedDashboard } from "./lib/bd-scope";
+import { bdPage } from "./lib/bd-page";
 
 export default {
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     const response = await accessResponse(request, env);
     if (response) return response;
+    const principal = sessionPrincipal(request, env);
+    if (principal?.role === "bd") {
+      const url = new URL(request.url);
+      if (url.pathname === "/bd-dashboard.js") return privateResponse(await env.ASSETS.fetch(request));
+      if (url.pathname === "/") return bdPage(principal.owner);
+      if (url.pathname === "/api/dashboard") {
+        const platform = url.searchParams.get("platform");
+        if (platform !== "business" && platform !== "wallet") return privateResponse(Response.json({ error: "Invalid platform." }, { status: 400 }));
+        try {
+          const published: unknown = await env.DASHBOARD_SNAPSHOTS.get(`dashboard:${platform}:latest`, { type: "json" });
+          const scoped = scopedDashboard(published, platform, principal.owner);
+          if (!scoped || scoped.environment !== "staging") return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 }));
+          return privateResponse(Response.json(scoped));
+        } catch { return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 })); }
+      }
+      return privateResponse(Response.json({ error: "Forbidden." }, { status: 403 }));
+    }
     // Vite assets (including bundled fallback data) must pass the same gate.
     if (request.method === "GET" || request.method === "HEAD") {
       const asset = await env.ASSETS.fetch(request);

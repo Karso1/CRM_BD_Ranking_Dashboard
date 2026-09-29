@@ -9,18 +9,37 @@ const exports = {};
 const source = ts.transpileModule(readFileSync(new URL('../lib/site-access.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-vm.runInNewContext(source, { exports, require: name => {
+vm.runInNewContext(source, { exports, process: { env: { NEXT_PUBLIC_DEPLOYMENT_ENV: 'staging' } }, require: name => {
   assert.equal(name, 'node:crypto'); return crypto;
 }, Request, Response, Headers, URL, URLSearchParams, TextDecoder });
-const { accessResponse, createSession, validSession, SESSION_COOKIE, SESSION_SECONDS } = exports;
+const { accessResponse, createSession, validSession, sessionPrincipal, SESSION_COOKIE, SESSION_SECONDS } = exports;
 const origin = 'https://staging.example.test';
 const env = () => ({ DASHBOARD_USERNAME: 'upay', DASHBOARD_PASSWORD: 'Test-password-123', DASHBOARD_SESSION_SECRET: 'random-test-signing-secret',
+  DASHBOARD_BD_ACCOUNTS: JSON.stringify([{ username: 'Katrina', password: 'Katrina-password-456', owner: 'Katrina' }]),
   LOGIN_RATE_LIMITER: { limit: async () => ({ success: true }) }, WALLET_SOURCE_URL: 'https://source.example.test?key=sync-key' });
 const req = (path = '/', init = {}) => new Request(origin + path, init);
 const login = (password, headers = {}) => req('/access/login', { method: 'POST',
   headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
   body: new URLSearchParams({ username: 'upay', password }) });
 const cookieReq = (token, path = '/') => req(path, { headers: { Cookie: `${SESSION_COOKIE}=${token}` } });
+
+test('BD login is separate from admin and cannot request bundled admin assets or publish data', async () => {
+  const settings = env();
+  const response = await accessResponse(req('/access/login', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: 'Katrina', password: 'Katrina-password-456' }) }), settings);
+  assert.equal(response.status, 303);
+  const cookie = response.headers.get('Set-Cookie').split(';')[0];
+  const authenticated = path => req(path, { headers: { Cookie: cookie } });
+  assert.equal(sessionPrincipal(authenticated('/'), settings).owner, 'Katrina');
+  assert.equal(await accessResponse(authenticated('/'), settings), null);
+  assert.equal(await accessResponse(authenticated('/api/dashboard?platform=wallet'), settings), null);
+  for (const path of ['/_next/static/chunks/page.js', '/vinext-client-entry-manifest.json', '/api/dashboard?platform=wallet&refresh=1']) {
+    assert.equal((await accessResponse(authenticated(path), settings)).status, 403, path);
+  }
+  assert.equal((await accessResponse(req('/?_rsc=1', { headers: { Cookie: cookie, RSC: '1' } }), settings)).status, 403);
+  assert.equal(sessionPrincipal(authenticated('/'), { ...settings, DASHBOARD_BD_ACCOUNTS: '[]' }), null);
+});
 
 test('anonymous visitors cannot read dashboard, API, fallback scripts or RSC payloads', async () => {
   const page = await accessResponse(req('/'), env());

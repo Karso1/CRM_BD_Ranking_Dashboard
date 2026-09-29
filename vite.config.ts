@@ -28,7 +28,8 @@ const localBindingConfig = {
   // Cloudflare serves them, not just HTML and /api/dashboard.
   ...({
     assets: { binding: "ASSETS", run_worker_first: true },
-    secrets: { required: ["DASHBOARD_USERNAME", "DASHBOARD_PASSWORD", "DASHBOARD_SESSION_SECRET"] },
+    secrets: { required: ["DASHBOARD_USERNAME", "DASHBOARD_PASSWORD", "DASHBOARD_SESSION_SECRET",
+      ...(deploymentEnv === "staging" ? ["DASHBOARD_BD_ACCOUNTS"] : [])] },
   }),
   ratelimits: [{
     name: "LOGIN_RATE_LIMITER", namespace_id: deploymentEnv === "staging" ? "2026092801" : "2026092901",
