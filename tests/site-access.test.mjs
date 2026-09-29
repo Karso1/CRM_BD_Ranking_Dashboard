@@ -23,7 +23,12 @@ const login = (password, headers = {}) => req('/access/login', { method: 'POST',
   body: new URLSearchParams({ username: 'upay', password }) });
 const cookieReq = (token, path = '/') => req(path, { headers: { Cookie: `${SESSION_COOKIE}=${token}` } });
 
-test('BD login is separate from admin and cannot request bundled admin assets or publish data', async () => {
+test('shared dashboard client never imports a complete fallback snapshot', () => {
+  const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(page, /import\s+\w+\s+from\s+["'].+(dashboard-data|wallet-data)\.json/);
+});
+
+test('BD login is separate from admin and can load the shared UI but cannot publish data', async () => {
   const settings = env();
   const response = await accessResponse(req('/access/login', { method: 'POST',
     headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -34,10 +39,13 @@ test('BD login is separate from admin and cannot request bundled admin assets or
   assert.equal(sessionPrincipal(authenticated('/'), settings).owner, 'Katrina');
   assert.equal(await accessResponse(authenticated('/'), settings), null);
   assert.equal(await accessResponse(authenticated('/api/dashboard?platform=wallet'), settings), null);
-  for (const path of ['/_next/static/chunks/page.js', '/vinext-client-entry-manifest.json', '/api/dashboard?platform=wallet&refresh=1']) {
+  for (const path of ['/_next/static/chunks/page.js', '/vinext-client-entry-manifest.json']) {
+    assert.equal(await accessResponse(authenticated(path), settings), null, path);
+  }
+  for (const path of ['/api/dashboard?platform=wallet&refresh=1', '/other-private-route']) {
     assert.equal((await accessResponse(authenticated(path), settings)).status, 403, path);
   }
-  assert.equal((await accessResponse(req('/?_rsc=1', { headers: { Cookie: cookie, RSC: '1' } }), settings)).status, 403);
+  assert.equal(await accessResponse(req('/?_rsc=1', { headers: { Cookie: cookie, RSC: '1' } }), settings), null);
   assert.equal(sessionPrincipal(authenticated('/'), { ...settings, DASHBOARD_BD_ACCOUNTS: '[]' }), null);
 });
 

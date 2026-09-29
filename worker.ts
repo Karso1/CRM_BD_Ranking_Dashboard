@@ -2,7 +2,6 @@ import handler from "vinext/server/fetch-handler";
 import { accessResponse, privateResponse } from "./lib/site-access";
 import { sessionPrincipal } from "./lib/site-access";
 import { scopedDashboard } from "./lib/bd-scope";
-import { bdPage } from "./lib/bd-page";
 
 export default {
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
@@ -11,8 +10,6 @@ export default {
     const principal = sessionPrincipal(request, env);
     if (principal?.role === "bd") {
       const url = new URL(request.url);
-      if (url.pathname === "/bd-dashboard.js") return privateResponse(await env.ASSETS.fetch(request));
-      if (url.pathname === "/") return bdPage(principal.owner);
       if (url.pathname === "/api/dashboard") {
         const platform = url.searchParams.get("platform");
         if (platform !== "business" && platform !== "wallet") return privateResponse(Response.json({ error: "Invalid platform." }, { status: 400 }));
@@ -22,6 +19,13 @@ export default {
           if (!scoped || scoped.environment !== "staging") return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 }));
           return privateResponse(Response.json(scoped));
         } catch { return privateResponse(Response.json({ error: "Data unavailable." }, { status: 503 })); }
+      }
+      if (url.pathname === "/" || url.pathname.startsWith("/_next/") || url.pathname === "/vinext-client-entry-manifest.json") {
+        if (url.pathname !== "/") {
+          const asset = await env.ASSETS.fetch(request);
+          if (asset.status !== 404) return privateResponse(asset);
+        }
+        return privateResponse(await handler.fetch(request, env, ctx));
       }
       return privateResponse(Response.json({ error: "Forbidden." }, { status: 403 }));
     }

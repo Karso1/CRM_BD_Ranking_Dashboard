@@ -31,6 +31,7 @@ export function scopedDashboard(snapshot: unknown, platform: "business" | "walle
   return {
     environment: publication.environment,
     updatedAt: publication.updatedAt,
+    scope: { owner },
     [platform]: { periods, profiles },
   };
 }

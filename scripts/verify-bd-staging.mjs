@@ -1,6 +1,6 @@
 // Read-only online verification. Passwords remain in ignored local files and are never printed.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const root = new URL('../', import.meta.url);
 const base = 'https://upay-bd-ranking-staging.karsol.workers.dev';
@@ -30,10 +30,14 @@ const cookie = await login(account);
 response = await read('/', { headers: { Cookie: cookie } });
 assert.equal(response.status, 200);
 const html = await response.text();
-assert.match(html, /bd-dashboard\.js/); assert.doesNotMatch(html, /_next\/static|dashboard-data/);
-response = await read('/bd-dashboard.js', { headers: { Cookie: cookie } });
+assert.match(html, /UP OPERATIONS|Trend Intelligence/);
+assert.doesNotMatch(html, /Platinum One|Digital Business/);
+const chunkFiles = await readdir(new URL('dist/client/_next/static/chunks/', root));
+const pageChunk = '/_next/static/chunks/' + chunkFiles.find(file => file.startsWith('page-') && file.endsWith('.js'));
+assert.ok(!pageChunk.endsWith('undefined'));
+response = await read(pageChunk, { headers: { Cookie: cookie } });
 assert.equal(response.status, 200);
-assert.doesNotMatch(await response.text(), /Ruslan|Richard|dashboard-data\.json/);
+assert.doesNotMatch(await response.text(), /Platinum One|Digital Business|dashboard-data\.json/);
 for (const platform of ['business', 'wallet']) {
   response = await read(`/api/dashboard?platform=${platform}&cacheOnly=1`, { headers: { Cookie: cookie } });
   assert.equal(response.status, 200);
@@ -51,14 +55,18 @@ for (const platform of ['business', 'wallet']) {
   assert.ok(scope.periods.at(-1).details.length <= unfiltered.periods.at(-1).details.length);
   console.log(`PASS ${platform}: ${scope.periods.length} scoped months; all rows and profiles belong to Katrina`);
 }
-for (const path of ['/_next/static/chunks/page-DI0g_zEI.js', '/vinext-client-entry-manifest.json',
-  '/api/dashboard?platform=business&refresh=1', '/api/dashboard?platform=wallet&refresh=1']) {
+for (const path of ['/api/dashboard?platform=business&refresh=1', '/api/dashboard?platform=wallet&refresh=1']) {
   response = await read(path, { headers: { Cookie: cookie } });
   assert.equal(response.status, 403, path);
 }
 response = await read('/?_rsc=1', { headers: { Cookie: cookie, RSC: '1' } });
-assert.equal(response.status, 403);
-console.log('PASS BD cannot access admin bundles, RSC data or publication endpoint');
+assert.ok([200, 307].includes(response.status));
+assert.doesNotMatch(await response.text(), /Platinum One|Digital Business/);
+for (const oldPath of ['/_next/static/chunks/page-DI0g_zEI.js', '/_next/static/chunks/page-ZWtCrYgy.js']) {
+  response = await read(oldPath, { headers: { Cookie: cookie } });
+  assert.notEqual(response.status, 200, `Old full-data asset still accessible: ${oldPath}`);
+}
+console.log('PASS BD sees the original UI, but bundles and RSC contain no snapshot data; publication is blocked');
 response = await read('/access/logout', { method: 'POST', headers: { Cookie: cookie, Origin: base } });
 assert.equal(response.status, 303);
 assert.equal((await read('/api/dashboard?platform=business')).status, 401);

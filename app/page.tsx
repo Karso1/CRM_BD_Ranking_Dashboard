@@ -4,9 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Image from "next/image";
 import { Activity, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Download, LayoutDashboard, LogOut, RefreshCw, RotateCcw, Search, UsersRound, Waypoints, Zap } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import dashboardData from "./dashboard-data.json";
-import walletData from "./wallet-data.json";
-import stagingDashboardData from "./staging-dashboard-data.json";
 import { DashboardDatePicker, FilterSelect } from "@/components/dashboard-filters";
 import { agentActivity, activityKey } from "@/lib/agent-activity";
 import { AgentProfileButton } from "@/components/agent-profile";
@@ -23,11 +20,11 @@ type Detail = { name:string; owner:string; type:"代理商"|"API"; recharge:numb
 type Report = { date:string; details:Omit<Detail,"yesterday">[] };
 type Period = { id:string; label:string; start:string; end:string; overall:Overall[]; details:Detail[]; daily:Report[] };
 const isStaging = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === "staging";
-const fallbackPeriods:Record<Platform,Period[]> = {
- business: (isStaging ? stagingDashboardData.business.periods : dashboardData.periods) as Period[],
- wallet: (isStaging ? stagingDashboardData.wallet.periods : walletData.periods) as Period[],
-};
-type DashboardPayload = { business?:{periods?:Period[];profiles?:AgentProfile[]}; wallet?:{periods?:Period[];profiles?:AgentProfile[]} };
+// Never bundle complete dashboard snapshots into browser assets: a BD account
+// must not be able to download other owners' data from a JavaScript chunk.
+const emptyPeriod:Period = {id:"2026-09",label:"September 2026",start:"2026-09-01",end:"2026-09-28",overall:[],details:[],daily:[]};
+const fallbackPeriods:Record<Platform,Period[]> = {business:[emptyPeriod],wallet:[emptyPeriod]};
+type DashboardPayload = { scope?:{owner:string}; business?:{periods?:Period[];profiles?:AgentProfile[]}; wallet?:{periods?:Period[];profiles?:AgentProfile[]} };
 const colors = ["#58d2a5", "#49a6f2", "#59d4e8", "#9b79e8", "#75889a"];
 const money = (v:number) => v >= 1e6 ? `${(v/1e6).toFixed(2)}M` : v >= 1e3 ? `${Math.round(v/1e3).toLocaleString()}K` : Math.round(v).toLocaleString();
 const number = (v:number) => v.toLocaleString("en-US",{maximumFractionDigits:0});
@@ -48,6 +45,7 @@ export default function Home(){
  const initialPeriod=fallbackPeriods.business.at(-1)!;
  const [periodSets,setPeriodSets]=useState<Record<Platform,Period[]>>(fallbackPeriods);
  const [profileSets,setProfileSets]=useState<Record<Platform,AgentProfile[]>>({business:[],wallet:[]});
+ const [scopeOwner,setScopeOwner]=useState<string|null>(null);
  const [platform,setPlatform]=useState<Platform>("business"),[lang,setLang]=useState<Lang>("en"),[month,setMonth]=useState(initialPeriod.id),[mode,setMode]=useState<"mtd"|"range">("mtd"),[start,setStart]=useState(initialPeriod.start),[end,setEnd]=useState(initialPeriod.end),[owner,setOwner]=useState("全部BD"),[metric,setMetric]=useState("充值金额"),[view,setView]=useState<View>("总体"),[search,setSearch]=useState(""),[nav,setNav]=useState("dashboard"),[syncing,setSyncing]=useState(true),[syncFailed,setSyncFailed]=useState(false),[selectedContribution,setSelectedContribution]=useState<number|null>(null);
  const requestSequence=useRef(0);
  const [columnSort,setColumnSort]=useState<{key:SortKey;direction:"asc"|"desc"}|null>(null);
@@ -67,7 +65,7 @@ export default function Home(){
    return {...current,[nextPlatform]:nextPeriods};
   });
   // Show the last successful browser copy immediately while checking for newer data.
-  if(!force){try{const saved=JSON.parse(localStorage.getItem(storageKey)??"null");if(Array.isArray(saved)&&saved.length&&saved.every((p:Period)=>p.id&&p.end&&Array.isArray(p.daily)&&Array.isArray(p.details)&&Array.isArray(p.overall)))apply(saved)}catch{/* Storage is optional. */}}
+  if(!force&&!isStaging){try{const saved=JSON.parse(localStorage.getItem(storageKey)??"null");if(Array.isArray(saved)&&saved.length&&saved.every((p:Period)=>p.id&&p.end&&Array.isArray(p.daily)&&Array.isArray(p.details)&&Array.isArray(p.overall)))apply(saved)}catch{/* Storage is optional. */}}
   if(!silent)setSyncing(true);
   const timeout=window.setTimeout(()=>controller.abort(),125000);
   try{
@@ -95,9 +93,10 @@ export default function Home(){
    if(!nextPeriods?.length)throw new Error(`Dashboard response has no ${nextPlatform} data`);
    if(requestId!==requestSequence.current)return;
    apply(nextPeriods);
+   setScopeOwner(payload.scope?.owner??null);
    setProfileSets(current=>({...current,[nextPlatform]:payload[nextPlatform]?.profiles??[]}));
    lastChecked.current[nextPlatform]=Date.now();
-   try{localStorage.setItem(storageKey,JSON.stringify(nextPeriods))}catch{/* Quota/private mode must not interrupt the dashboard. */}
+   if(!isStaging)try{localStorage.setItem(storageKey,JSON.stringify(nextPeriods))}catch{/* Quota/private mode must not interrupt the dashboard. */}
    setSyncFailed(false);
   }catch{if(requestId===requestSequence.current){setSyncFailed(true)}}
   finally{window.clearTimeout(timeout);if(activeRequest.current===controller)activeRequest.current=null;if(requestId===requestSequence.current)setSyncing(false)}
@@ -198,7 +197,7 @@ export default function Home(){
    <label className="filter-field"><span>{t.basis}</span><FilterSelect ariaLabel={t.basis} value={mode} onChange={value=>switchMode(value as "mtd"|"range")} options={[{value:"mtd",label:t.mtd},{value:"range",label:t.range}]}/></label>
    {mode==="range"&&<div className="date-range-fields"><label className="filter-field"><span>{t.start}</span><DashboardDatePicker value={start} min={firstDate} max={end} onChange={setStart} lang={lang}/></label><span className="date-divider">→</span><label className="filter-field"><span>{t.end}</span><DashboardDatePicker value={end} min={start} max={lastDate} onChange={setEnd} lang={lang}/></label></div>}
    {mode==="mtd"&&<label className="filter-field"><span>{t.asOf}</span><DashboardDatePicker value={end} min={firstDate} max={lastDate} onChange={nextDate=>{const nextPeriod=periods.find(p=>p.id===nextDate.slice(0,7));if(!nextPeriod)return;setMonth(nextPeriod.id);setStart(nextPeriod.start);setEnd(nextDate)}} lang={lang}/></label>}
-   <label className="filter-field"><span>{t.bd}</span><FilterSelect ariaLabel={t.bd} value={owner} onChange={setOwner} options={[{value:"全部BD",label:t.allBd},...bds.map(x=>({value:x,label:x}))]}/></label>
+   <label className="filter-field"><span>{t.bd}</span><FilterSelect ariaLabel={t.bd} value={owner} onChange={setOwner} options={scopeOwner?[{value:"全部BD",label:scopeOwner}]:[{value:"全部BD",label:t.allBd},...bds.map(x=>({value:x,label:x}))]}/></label>
    <label className="filter-field"><span>{t.metric}</span><FilterSelect ariaLabel={t.metric} value={metric} onChange={value=>{setMetric(value);setColumnSort(null)}} options={[{value:"充值金额",label:performanceLabel},...(view==="总体"?[{value:"完成率",label:t.completion}]:[]),{value:"当日充值",label:mode==="mtd"?dailyLabel:averageDailyLabel}]}/></label>
   </div>
   <div className="filter-utilities"><div className="filter-actions"><button className="reset-button" onClick={resetFilters}><RotateCcw size={14}/>{t.reset}</button><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={isWallet?(lang==="zh"?"搜索 BD 或代理商":"Search BD or agent"):t.search}/></div></div></div>

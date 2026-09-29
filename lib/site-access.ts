@@ -138,8 +138,8 @@ function trustedSync(request: Request, env: AccessEnv): boolean {
 export async function accessResponse(request: Request, env: AccessEnv): Promise<Response | null> {
   const url = new URL(request.url);
   const lang: Language = url.searchParams.get("lang") === "zh" ? "zh" : "en";
-  // Only the public brand asset is exempt; dashboard bundles remain protected.
-  if (["/upay-logo.png", "/bd-dashboard.js"].includes(url.pathname) && ["GET", "HEAD"].includes(request.method)) return null;
+  // The public brand asset contains no business data.
+  if (url.pathname === "/upay-logo.png" && ["GET", "HEAD"].includes(request.method)) return null;
   if (trustedSync(request, env)) return null;
   if (!env.DASHBOARD_USERNAME || !env.DASHBOARD_PASSWORD || !env.DASHBOARD_SESSION_SECRET) {
     return privateResponse(new Response(lang === "zh" ? "登录尚未配置，请联系管理员。" : "Sign-in is not configured. Please contact the administrator.", { status: 503 }));
@@ -194,8 +194,9 @@ export async function accessResponse(request: Request, env: AccessEnv): Promise<
   }
   if (principal?.role === "admin") return null;
   if (principal?.role === "bd") {
-    if (!request.headers.has("RSC") && ["GET", "HEAD"].includes(request.method) &&
-      (url.pathname === "/" || (url.pathname === "/api/dashboard" && url.searchParams.get("refresh") !== "1"))) return null;
+    if (["GET", "HEAD"].includes(request.method) &&
+      (url.pathname === "/" || url.pathname.startsWith("/_next/") || url.pathname === "/vinext-client-entry-manifest.json" ||
+        (url.pathname === "/api/dashboard" && url.searchParams.get("refresh") !== "1"))) return null;
     return privateResponse(Response.json({ error: "Forbidden." }, { status: 403 }));
   }
   if (url.pathname.startsWith("/api/") || /\.[a-z0-9]+$/i.test(url.pathname) || request.headers.has("RSC")) {
