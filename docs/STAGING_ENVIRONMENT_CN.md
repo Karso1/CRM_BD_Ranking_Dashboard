@@ -2,7 +2,7 @@
 
 测试网站：[https://upay-bd-ranking-staging.karsol.workers.dev](https://upay-bd-ranking-staging.karsol.workers.dev)
 
-**访问与数据说明：** 测试与正式 Worker 均使用共用用户名和密码入口，无需个人账号或邮箱；Worker 同时验证页面、静态文件和数据接口的访问权限。密码保存在 Worker Secret，修改方法见 [网站访问密码说明](网站访问密码说明.md)。原始导出、卡号/订单明细和同步密钥仍保留在本机、私有 Google Sheet 或 Worker secret 中，不写入网页代码。
+**访问与数据说明：** 测试与正式 Worker 均要求用户名和密码登录，支持管理员和绑定 BD 的账号；两环境账号配置各自独立。Worker 同时验证页面、静态文件和数据接口的访问权限，BD 数据范围在服务端限制。凭据保存在 Worker Secret，管理方法见 [网站访问密码说明](网站访问密码说明.md)。原始导出、卡号/订单明细和同步密钥仍保留在本机、私有 Google Sheet 或 Worker Secret 中，不写入网页代码。
 
 ## 生产与测试的边界
 
