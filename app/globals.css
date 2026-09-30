@@ -172,3 +172,6 @@
 .data-warning button{flex:0 0 auto;border:1px solid #76552c;border-radius:6px;background:transparent;color:inherit;padding:6px 10px;font:inherit;cursor:pointer}
 .data-warning button:disabled{cursor:wait;opacity:.55}
 @media(max-width:640px){.data-warning{align-items:flex-start;flex-direction:column;gap:8px}}
+.table-wrap .ranking-summary{background:#102722}
+.table-wrap .ranking-summary td{border-top:1px solid #326a59;border-bottom:1px solid #326a59;color:#d5eee4;font-weight:700}
+.table-wrap .ranking-summary .summary-name{color:var(--mint)}
