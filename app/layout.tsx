@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UPay 业务运营平台",
-  description: "UP Business 与 UPay Wallet 业务数据、BD 与代理关系的统一看板。",
+  title: "UPay Operations Platform",
+  description: "A unified dashboard for UP Business, UPay Wallet, BD performance, and agent relationships.",
   other: {
     "codex-preview": "development",
   },

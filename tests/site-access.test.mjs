@@ -161,7 +161,7 @@ test('logout clears the session and local cached data', async () => {
 test('language switch defaults to English, shows real logo and no footer; username is required', async () => {
  const en = await (await accessResponse(req('/access'), env())).text();
  assert.match(en, /<html lang="en">/); assert.match(en, /name="username"/);
- assert.match(en, /src="\/upay-logo.png"/); assert.match(en, /rel="icon" type="image\/png" href="\/upay-logo.png"/); assert.match(en, /UPay 业务运营平台/); assert.doesNotMatch(en, /No account needed|保持登录|<span class="mark"/);
+ assert.match(en, /src="\/upay-logo.png"/); assert.match(en, /rel="icon" type="image\/png" href="\/upay-logo.png"/); assert.match(en, /UPay Operations Platform/); assert.doesNotMatch(en, /No account needed|保持登录|<span class="mark"/);
  const zh = await (await accessResponse(req('/access?lang=zh'), env())).text();
  assert.match(zh, /用户名/); assert.doesNotMatch(zh, /Welcome to UPay|Sign in/);
  assert.equal(await accessResponse(req('/upay-logo.png'), env()), null);
