@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UP 每日业绩排名",
-  description: "UP 内部每日业绩与代理排名看板。",
+  title: "UPay 业务运营平台",
+  description: "UP Business 与 UPay Wallet 业务数据、BD 与代理关系的统一看板。",
   other: {
     "codex-preview": "development",
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: { url: "/upay-logo.png", type: "image/png" },
+    shortcut: "/upay-logo.png",
   },
 };
 

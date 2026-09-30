@@ -111,7 +111,7 @@ function loginPage(lang: Language, error: LoginError = "", status = 200): Respon
   const t = loginWords[lang];
   return privateResponse(new Response(`<!doctype html><html lang="${lang === "zh" ? "zh-CN" : "en"}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>UPay · ${t.submit}</title>
+<meta name="robots" content="noindex, nofollow"><link rel="icon" type="image/png" href="/upay-logo.png"><title>UPay 业务运营平台 · ${t.submit}</title>
 <style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e8f4f0;background:#061214}
 *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 12%,#12342e 0,transparent 55%)}
