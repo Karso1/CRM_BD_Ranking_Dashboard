@@ -175,3 +175,9 @@
 .table-wrap .ranking-summary{background:#102722}
 .table-wrap .ranking-summary td{border-top:1px solid #326a59;border-bottom:1px solid #326a59;color:#d5eee4;font-weight:700}
 .table-wrap .ranking-summary .summary-name{color:var(--mint)}
+.export-button:hover{background:#7ce4bd}
+.export-button:focus-visible{outline:2px solid #bdf5df;outline-offset:2px}
+.export-menu{min-width:170px;border:1px solid #326a59;background:#0d2221;color:#e5f5ef;box-shadow:0 14px 32px rgba(0,0,0,.35)}
+.export-menu-item{min-height:38px;padding:9px 12px;color:#d9eee6;font-size:13px;cursor:pointer}
+.export-menu-item[data-highlighted]{background:#173b34;color:#bdf5df}
+@media(max-width:720px){.export-chevron{display:none}}
