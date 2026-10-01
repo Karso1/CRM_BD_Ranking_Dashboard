@@ -7,7 +7,7 @@ type AccessEnv = CredentialEnv & Pick<Cloudflare.Env, "DASHBOARD_BD_ACCOUNTS" | 
   "LOGIN_RATE_LIMITER" | "WALLET_SOURCE_URL" | "DASHBOARD_SOURCE_URL">;
 type BdAccount = { username: string; password: string; owner: string };
 type AdminAccount = { username: string; password: string };
-export type Principal = { role: "admin" } | { role: "bd"; owner: string; username: string };
+export type Principal = { role: "admin"; primary: boolean } | { role: "bd"; owner: string; username: string };
 
 function bdAccounts(env: AccessEnv): BdAccount[] {
   if (!env.DASHBOARD_BD_ACCOUNTS) return [];
@@ -75,9 +75,9 @@ export function validSession(request: Request, env: CredentialEnv, now = Date.no
 }
 
 export function sessionPrincipal(request: Request, env: AccessEnv): Principal | null {
-  if (validSession(request, env)) return { role: "admin" };
+  if (validSession(request, env)) return { role: "admin", primary: true };
   for (const account of additionalAdmins(env)) {
-    if (validSession(request, adminAccountEnv(env, account))) return { role: "admin" };
+    if (validSession(request, adminAccountEnv(env, account))) return { role: "admin", primary: false };
   }
   for (const account of bdAccounts(env)) {
     if (validSession(request, accountEnv(env, account))) {

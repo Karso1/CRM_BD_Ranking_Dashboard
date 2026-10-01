@@ -564,27 +564,27 @@ def dashboard_payload(daily: pd.DataFrame, targets: pd.DataFrame) -> dict[str, o
             rows = month_daily[month_daily.date.eq(date)]
             details = [{
                 "name": row.agent, "owner": row.bd, "type": row.category,
-                "recharge": float(row.total_amount), "consumption": float(row.consumption),
+                "recharge": float(row.total_amount), "rechargeAmount": float(row.recharge_amount), "consumption": float(row.consumption),
                 "cards": int(row.open_card_virtual + row.open_card_physical),
                 "cardsVirtual": int(row.open_card_virtual), "cardsPhysical": int(row.open_card_physical),
             } for row in rows.itertuples(index=False)]
             reports.append({"date": date, "details": details})
         grouped = month_daily.groupby(["bd", "agent", "category"], as_index=False).agg(
-            recharge=("total_amount", "sum"), consumption=("consumption", "sum"),
+            recharge=("total_amount", "sum"), rechargeAmount=("recharge_amount", "sum"), consumption=("consumption", "sum"),
             cardsVirtual=("open_card_virtual", "sum"), cardsPhysical=("open_card_physical", "sum"),
-        ) if not month_daily.empty else pd.DataFrame(columns=["bd", "agent", "category", "recharge", "consumption", "cardsVirtual", "cardsPhysical"])
+        ) if not month_daily.empty else pd.DataFrame(columns=["bd", "agent", "category", "recharge", "rechargeAmount", "consumption", "cardsVirtual", "cardsPhysical"])
         latest = month_daily[month_daily.date.eq(dates[-1])].groupby(["bd", "agent"], as_index=False).total_amount.sum() if dates else pd.DataFrame(columns=["bd", "agent", "total_amount"])
         latest_lookup = {(row.bd, row.agent): row.total_amount for row in latest.itertuples(index=False)}
         details = [{
             "name": row.agent, "owner": row.bd, "type": row.category,
-            "recharge": float(row.recharge), "consumption": float(row.consumption),
+            "recharge": float(row.recharge), "rechargeAmount": float(row.rechargeAmount), "consumption": float(row.consumption),
             "cards": int(row.cardsVirtual + row.cardsPhysical),
             "cardsVirtual": int(row.cardsVirtual), "cardsPhysical": int(row.cardsPhysical),
             "yesterday": float(latest_lookup.get((row.bd, row.agent), 0)),
         } for row in grouped.itertuples(index=False)]
         bd_totals = month_daily.groupby("bd", as_index=False).agg(
-            recharge=("total_amount", "sum"), cardsVirtual=("open_card_virtual", "sum"), cardsPhysical=("open_card_physical", "sum")
-        ) if not month_daily.empty else pd.DataFrame(columns=["bd", "recharge", "cardsVirtual", "cardsPhysical"])
+            recharge=("total_amount", "sum"), rechargeAmount=("recharge_amount", "sum"), consumption=("consumption", "sum"), cardsVirtual=("open_card_virtual", "sum"), cardsPhysical=("open_card_physical", "sum")
+        ) if not month_daily.empty else pd.DataFrame(columns=["bd", "recharge", "rechargeAmount", "consumption", "cardsVirtual", "cardsPhysical"])
         bd_lookup = {row.bd: row for row in bd_totals.itertuples(index=False)}
         yesterday_bd = month_daily[month_daily.date.eq(dates[-1])].groupby("bd").total_amount.sum().to_dict() if dates else {}
         overall = []
@@ -595,6 +595,8 @@ def dashboard_payload(daily: pd.DataFrame, targets: pd.DataFrame) -> dict[str, o
             overall.append({
                 "name": target.bd, "target": float(target.target),
                 "recharge": float(actual.recharge) if actual else 0,
+                "rechargeAmount": float(actual.rechargeAmount) if actual else 0,
+                "consumption": float(actual.consumption) if actual else 0,
                 "cards": virtual + physical, "cardsVirtual": virtual, "cardsPhysical": physical,
                 "yesterday": float(yesterday_bd.get(target.bd, 0)),
             })

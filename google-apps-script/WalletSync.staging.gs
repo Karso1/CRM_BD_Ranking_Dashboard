@@ -185,12 +185,13 @@ function buildPeriod(month, data) {
 }
 
 function businessItem(name, owner, category) {
-  return { name: name, owner: owner, type: category === 'API' ? 'API' : '代理商', recharge: 0, consumption: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
+  return { name: name, owner: owner, type: category === 'API' ? 'API' : '代理商', recharge: 0, rechargeAmount: 0, consumption: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
 }
 function addBusinessMetric(target, source) {
   const virtualCards = number(source.open_card_virtual);
   const physicalCards = number(source.open_card_physical);
   target.recharge += number(source.total_amount);
+  target.rechargeAmount += number(source.recharge_amount);
   target.consumption += number(source.consumption);
   target.cardsVirtual += virtualCards;
   target.cardsPhysical += physicalCards;
@@ -227,13 +228,16 @@ function buildBusinessPeriod(month, data) {
       const detailKey = row.owner.toLowerCase() + '|' + row.type + '|' + row.name.toLowerCase();
       if (!detailMap[detailKey]) detailMap[detailKey] = businessItem(row.name, row.owner, row.type);
       detailMap[detailKey].recharge += row.recharge;
+      detailMap[detailKey].rechargeAmount += row.rechargeAmount;
       detailMap[detailKey].consumption += row.consumption;
       detailMap[detailKey].cards += row.cards;
       detailMap[detailKey].cardsVirtual += row.cardsVirtual;
       detailMap[detailKey].cardsPhysical += row.cardsPhysical;
       const ownerKey = row.owner.toLowerCase();
-      if (!overallMap[ownerKey]) overallMap[ownerKey] = { name: row.owner, target: 0, recharge: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
+      if (!overallMap[ownerKey]) overallMap[ownerKey] = { name: row.owner, target: 0, recharge: 0, rechargeAmount: 0, consumption: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
       overallMap[ownerKey].recharge += row.recharge;
+      overallMap[ownerKey].rechargeAmount += row.rechargeAmount;
+      overallMap[ownerKey].consumption += row.consumption;
       overallMap[ownerKey].cards += row.cards;
       overallMap[ownerKey].cardsVirtual += row.cardsVirtual;
       overallMap[ownerKey].cardsPhysical += row.cardsPhysical;
@@ -242,7 +246,7 @@ function buildBusinessPeriod(month, data) {
   });
   Object.keys(data.targets).forEach(key => {
     const target = data.targets[key];
-    if (!overallMap[key]) overallMap[key] = { name: target.name, target: 0, recharge: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
+    if (!overallMap[key]) overallMap[key] = { name: target.name, target: 0, recharge: 0, rechargeAmount: 0, consumption: 0, cards: 0, cardsVirtual: 0, cardsPhysical: 0, yesterday: 0 };
     overallMap[key].name = target.name;
     overallMap[key].target += target.target;
   });

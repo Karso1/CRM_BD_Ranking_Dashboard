@@ -62,6 +62,7 @@ test('additional admin has full admin access and cannot be confused with a BD se
   assert.equal(response.status, 303);
   const request = req('/api/dashboard?platform=wallet&refresh=1', { headers: { Cookie: response.headers.get('Set-Cookie').split(';')[0] } });
   assert.equal(sessionPrincipal(request, settings).role, 'admin');
+  assert.equal(sessionPrincipal(request, settings).primary, false);
   assert.equal(await accessResponse(request, settings), null);
   assert.equal(sessionPrincipal(request, { ...settings, DASHBOARD_ADDITIONAL_ADMINS: '[]' }), null);
 });
@@ -81,6 +82,16 @@ test('production grants the same role-specific access for added admin and BD acc
   const bdReq = req('/api/dashboard?platform=wallet&refresh=1', { headers: { Cookie: bd.headers.get('Set-Cookie').split(';')[0] } });
   assert.equal(productionExports.sessionPrincipal(bdReq, settings).owner, 'Katrina');
   assert.equal((await productionExports.accessResponse(bdReq, settings)).status, 403);
+});
+
+test('only the primary UPay session has export permission', () => {
+  const settings = env();
+  const primary = cookieReq(createSession(settings));
+  assert.equal(sessionPrincipal(primary, settings).primary, true);
+  const additional = cookieReq(createSession({ DASHBOARD_USERNAME: 'manager2', DASHBOARD_PASSWORD: 'Manager-password-456', DASHBOARD_SESSION_SECRET: settings.DASHBOARD_SESSION_SECRET }));
+  assert.equal(sessionPrincipal(additional, settings).primary, false);
+  const bd = cookieReq(createSession({ DASHBOARD_USERNAME: 'Katrina', DASHBOARD_PASSWORD: 'Katrina-password-456', DASHBOARD_SESSION_SECRET: settings.DASHBOARD_SESSION_SECRET }));
+  assert.equal(sessionPrincipal(bd, settings).role, 'bd');
 });
 
 test('anonymous visitors cannot read dashboard, API, fallback scripts or RSC payloads', async () => {

@@ -8,6 +8,9 @@ export default {
     const response = await accessResponse(request, env);
     if (response) return response;
     const principal = sessionPrincipal(request, env);
+    if (new URL(request.url).pathname === "/api/permissions") {
+      return privateResponse(Response.json({ canExport: principal?.role === "admin" && principal.primary }));
+    }
     if (principal?.role === "bd") {
       const url = new URL(request.url);
       if (url.pathname === "/api/dashboard") {
