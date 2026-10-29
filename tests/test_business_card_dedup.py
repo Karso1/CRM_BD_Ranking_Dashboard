@@ -99,6 +99,43 @@ class BusinessCardDedupTests(unittest.TestCase):
             cards, _, _ = BUSINESS.load_card_data(root, {"demo agent": client}, [], [])
             self.assertTrue(cards.empty)
 
+    def test_same_file_keeps_earliest_application_not_first_row(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / "开卡"
+            folder.mkdir()
+            base = {
+                "订单号": "repeated-order", "所属代理商": "Demo Agent", "历史代理商": "Demo Agent",
+                "实/虚卡": "虚拟卡", "卡ID": "card-1", "卡唯一ID": "uuid-1", "开卡费": 10,
+                "卡状态": "开卡成功", "开卡成功时间": "2026-10-08",
+            }
+            later = {**base, "申请时间": "2026-10-08"}
+            earlier = {**base, "申请时间": "2026-10-02", "开卡成功时间": "2026-10-02"}
+            pd.DataFrame([later, earlier]).to_excel(folder / "export.xlsx", index=False)
+            client = BUSINESS.Client("Demo Agent", "代理商", "Demo BD", "recharge")
+            coverage = []
+            cards, _, _ = BUSINESS.load_card_data(root, {"demo agent": client}, coverage, [])
+            self.assertEqual(int(cards.open_card_virtual.sum()), 1)
+            self.assertEqual(cards.iloc[0].date.strftime("%Y-%m-%d"), "2026-10-02")
+            self.assertEqual(coverage[-1]["duplicate_rows_removed"], 1)
+
+    def test_same_application_time_keeps_first_source_row(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / "开卡"
+            folder.mkdir()
+            base = {
+                "订单号": "repeated-order", "所属代理商": "Demo Agent", "历史代理商": "Demo Agent",
+                "实/虚卡": "实体卡", "卡ID": "card-1", "卡唯一ID": "uuid-1", "开卡费": 10,
+                "申请时间": "2026-10-02 07:08:15", "开卡成功时间": "2026-10-02",
+            }
+            pending = {**base, "卡状态": "待激活"}
+            successful = {**base, "卡状态": "开卡成功", "开卡成功时间": "2026-10-08"}
+            pd.DataFrame([pending, successful]).to_excel(folder / "export.xlsx", index=False)
+            client = BUSINESS.Client("Demo Agent", "代理商", "Demo BD", "recharge")
+            cards, _, _ = BUSINESS.load_card_data(root, {"demo agent": client}, [], [])
+            self.assertTrue(cards.empty)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,6 +48,9 @@ next-env.d.ts
 /tools/upw-daily-pipeline/outputs/
 /tools/upw-daily-pipeline/sync.local.json
 /tools/upw-daily-pipeline/sync.staging.local.json
+/tools/upw-download/.local/
+/tools/upw-download/.venv/
+/tools/upw-download/UPW-已导入日期.json
 /tools/upb-daily-pipeline/outputs/
 /tools/upb-daily-pipeline/cache/
 /tools/upb-daily-pipeline/sync.local.json

@@ -40,6 +40,15 @@ def output_hashes(output: Path) -> dict:
         for pattern in ("*_daily_metrics.csv", "*_monthly_targets.csv", "agent_profiles.json") for file in output.glob(pattern)}
 
 
+def upb_mapping_file(formal: Path) -> Path:
+    folder = formal / "BD代理关系目标"
+    candidates = sorted(path for path in folder.glob("*.xlsx")
+        if path.is_file() and not path.name.startswith(("~$", ".")))
+    if len(candidates) != 1:
+        raise ValueError(f"{folder} 必须恰好有一份正式 BD 配置表，当前找到 {len(candidates)} 份；请勿使用 Excel 临时文件。")
+    return candidates[0]
+
+
 def validated_staging(platform: str) -> dict:
     staging = plan(platform, "staging")
     receipt = json.loads((staging["output"] / "last_success.json").read_text(encoding="utf-8"))
@@ -79,10 +88,11 @@ def plan(platform: str, environment: str, workspace: Path = WORKSPACE) -> dict:
             "--mapping-workbook", str(mapping), "--config", str(code / "config.json"), "--output-dir", str(output)]
         sync = python + [str(code / "sync_wallet_dashboard.py"), "--csv", str(output / "wallet_daily_metrics.csv")]
     else:
-        mapping = inputs / "BD代理关系目标/BD代理关系.xlsx"
+        formal_mapping = upb_mapping_file(formal)
+        mapping = inputs / "BD代理关系目标" / formal_mapping.name
         cache = code / "cache/staging/fred_usd_hkd_daily.csv" if staging else production / "cache/fred_usd_hkd_daily.csv"
         calculate = python + [str(code / "build_business_history.py"), "--input-dir", str(inputs),
-            "--config", str(inputs / "BD代理关系目标/BD代理关系.xlsx"), "--output-dir", str(output), "--fx-cache", str(cache)]
+            "--config", str(mapping), "--output-dir", str(output), "--fx-cache", str(cache)]
         sync = python + [str(code / "sync_business_dashboard.py"), "--daily", str(output / "business_daily_metrics.csv")]
     sync += ["--targets", str(output / f"{field}_monthly_targets.csv"), "--settings", str(settings),
         "--expected-environment", environment, "--dashboard-url", f"https://{host}.karsol.workers.dev/api/dashboard?platform={field}&refresh=1"]

@@ -75,6 +75,15 @@ def excel_files(folder: Path) -> list[Path]:
     )
 
 
+def configuration_file(root: Path) -> Path:
+    folder = root / "BD代理关系目标"
+    candidates = sorted(path for path in folder.glob("*.xlsx")
+        if path.is_file() and not path.name.startswith(("~$", ".")))
+    if len(candidates) != 1:
+        raise ValueError(f"{folder} 必须恰好有一份正式 BD 配置表，当前找到 {len(candidates)} 份。")
+    return candidates[0]
+
+
 def source_version(path: Path) -> tuple[int, int, str]:
     """Order monthly exports by reporting month, then file update time."""
     match = re.search(r"(20\d{2})\s*[-_年]\s*(\d{1,2})\s*月?", path.stem)
@@ -93,6 +102,12 @@ def read_matching_sheet(
 ) -> tuple[pd.DataFrame, str]:
     required_set = set(required)
     with pd.ExcelFile(path) as book:
+        # Some new backend exports contain full rows but advertise A1 as the
+        # worksheet dimension. Pandas uses openpyxl's read-only worksheet and
+        # would otherwise see just the first cell.
+        for worksheet in book.book.worksheets:
+            if hasattr(worksheet, "reset_dimensions"):
+                worksheet.reset_dimensions()
         for sheet in book.sheet_names:
             header = pd.read_excel(book, sheet_name=sheet, nrows=0)
             header.columns = [clean(column) for column in header.columns]
@@ -286,7 +301,8 @@ def load_card_data(root: Path, mapping: dict[str, Client], coverage: list[dict[s
             add_card(frame.at[idx, "卡ID"] if "卡ID" in frame else "", client, path)
             if not client.configured and key(raw_client.at[idx]) not in {"", "upay"}:
                 unmapped.append({"source_type": "card", "raw_client": clean(raw_client.at[idx]), "source_file": str(path), "value": 1})
-        date = date_series(choose(frame, "开卡成功时间", required=False)).combine_first(date_series(choose(frame, "申请时间"))).dt.normalize()
+        application_time = date_series(choose(frame, "申请时间"))
+        date = date_series(choose(frame, "开卡成功时间", required=False)).combine_first(application_time).dt.normalize()
         kind = choose(frame, "实/虚卡").map(lambda value: "virtual" if "虚拟" in clean(value) else ("physical" if "实体" in clean(value) else ""))
         fee = number_series(choose(frame, "开卡费"))
         status = choose(frame, "卡状态").map(clean)
@@ -300,6 +316,7 @@ def load_card_data(root: Path, mapping: dict[str, Client], coverage: list[dict[s
             "kind": kind,
             "fee": fee,
             "status": status,
+            "application_time": application_time,
             "source_period": source_version(path)[0],
             "source_mtime_ns": source_version(path)[1],
             "source_file": str(path),
@@ -333,15 +350,13 @@ def load_card_data(root: Path, mapping: dict[str, Client], coverage: list[dict[s
     if not metrics:
         return pd.DataFrame(columns=["date", "bd", "agent", "category", "open_card_virtual", "open_card_physical"]), card_map, conflicts
     orders = pd.concat(metrics, ignore_index=True)
-    # Conflicts inside one workbook have no reliable version order. Between
-    # workbooks, the newest reporting-month snapshot is authoritative.
-    dimensions = ["date", "bd", "agent", "category", "kind", "fee", "status"]
-    variants = orders.groupby(["order_id", "source_file"])[dimensions].nunique(dropna=False)
-    if variants.gt(1).any(axis=1).any():
-        bad_orders = variants.gt(1).any(axis=1)
-        examples = [f"{order_id} ({Path(source).name})" for order_id, source in bad_orders[bad_orders].index[:5]]
-        raise ValueError(f"同一份开卡文件内同一订单有冲突记录，无法仅凭文件版本判断新旧：{', '.join(examples)}")
     before = len(orders)
+    # Within a workbook, keep the earliest application. An equal/missing
+    # application time falls back to the first source row. Across workbooks,
+    # retain the newest snapshot so later status changes can still take effect.
+    orders = orders.sort_values(
+        ["application_time", "source_row"], kind="stable", na_position="last"
+    ).drop_duplicates(["order_id", "source_file"], keep="first")
     orders = orders.sort_values(
         ["source_period", "source_mtime_ns", "source_file", "source_row"], kind="stable"
     ).drop_duplicates("order_id", keep="last")
@@ -352,7 +367,7 @@ def load_card_data(root: Path, mapping: dict[str, Client], coverage: list[dict[s
         & orders.status.eq("开卡成功")
         & orders.fee.gt(0)
     ].copy()
-    orders = orders.drop(columns=["source_period", "source_mtime_ns", "source_file", "source_row"])
+    orders = orders.drop(columns=["application_time", "source_period", "source_mtime_ns", "source_file", "source_row"])
     coverage.append(source_record(Path("ALL"), "", before, len(orders), orders.date,
                                   "open_card_deduplication", before - deduplicated_count))
     combined = orders.assign(count=1).pivot_table(
@@ -630,7 +645,7 @@ def main() -> int:
     parser.add_argument("--fx-cache", type=Path, default=script_dir / "cache" / "fred_usd_hkd_daily.csv")
     args = parser.parse_args()
     root = args.input_dir.resolve()
-    config_path = args.config or root / "BD代理关系目标" / "BD代理关系.xlsx"
+    config_path = args.config or configuration_file(root)
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     try:

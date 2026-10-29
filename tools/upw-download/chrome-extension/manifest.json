@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "UPW 数据导出助手",
+  "version": "0.3.7",
+  "description": "仅在已登录的 UPW 后台导出卡片、交易与代理关系 CSV；不修改网站数据。",
+  "permissions": ["downloads", "storage"],
+  "host_permissions": ["https://upayv3.alliancebxc.com:31007/*"],
+  "action": {},
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [{
+    "matches": ["https://upayv3.alliancebxc.com:31007/*"],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }]
+}

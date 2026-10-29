@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>UPW 数据导出助手</title>
+<style>
+  body { width: 310px; margin: 16px; font: 14px system-ui, sans-serif; color: #152023; }
+  h1 { font-size: 17px; margin: 0 0 12px; }
+  label { display: block; margin: 9px 0 4px; }
+  input { box-sizing: border-box; width: 100%; padding: 6px; }
+  button { margin-top: 14px; padding: 9px; width: 100%; background: #1c65df; color: white; border: 0; border-radius: 5px; cursor: pointer; }
+  p { line-height: 1.45; }
+  #status { white-space: pre-wrap; background: #f0f4f8; padding: 9px; min-height: 35px; }
+  .hint { color: #5c6870; font-size: 12px; }
+</style>
+<h1>UPW 数据导出助手</h1>
+<button id="coverage-button" type="button">首次选择本地“UPW-已导入日期.json”</button>
+<p id="coverage-status" class="hint">尚未连接本地已导入日期清单。</p>
+<button id="auto-button" type="button" disabled>1. 自动补齐缺少日期（推荐）</button>
+<p id="auto-preview" class="hint">先选择清单，才会计算待下载日期。</p>
+<details>
+<summary>2. 手动指定日期范围</summary>
+<label for="start">开始日期（UTC+8）</label><input id="start" type="date">
+<label for="end">结束日期（UTC+8）</label><input id="end" type="date">
+<button id="manual-button" type="button">下载指定日期范围</button>
+</details>
+<label for="relation">代理关系导出段数</label><input id="relation" type="number" min="1" max="100" value="1">
+<p class="hint">卡片全量导出一次；交易逐日导出；代理关系从最新一段开始。导出后仍须运行本地校验，扩展不会更新网站或原始数据。</p>
+<p id="status">未开始</p>
+<script src="popup.js"></script>
+</html>

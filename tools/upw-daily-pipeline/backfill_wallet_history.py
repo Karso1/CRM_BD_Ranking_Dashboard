@@ -163,6 +163,31 @@ def source_files(input_dir: Path) -> tuple[Path, Path, list[Path]]:
     return relationship, cards, sorted(transactions, key=lambda path: (path.stat().st_mtime_ns, path.name))
 
 
+def read_relationship_with_updates(path: Path) -> pd.DataFrame:
+    """Overlay UID-level daily changes without rewriting the historical workbook."""
+    baseline = read_table(path)
+    updates_path = path.parent / "代理关系增量.jsonl"
+    if not updates_path.exists():
+        return baseline
+    updates: list[dict[str, str]] = []
+    with updates_path.open(encoding="utf-8") as stream:
+        for line_number, line in enumerate(stream, 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"{updates_path.name} 第 {line_number} 行不是有效 JSON") from error
+            if not isinstance(row, dict):
+                raise ValueError(f"{updates_path.name} 第 {line_number} 行不是对象")
+            updates.append({key: str(value or "") for key, value in row.items()})
+    if not updates:
+        return baseline
+    delta = pd.DataFrame(updates)
+    require_columns(delta, ["用户UID", "总代UID", "上一级UID", "注册时间"], updates_path.name)
+    return pd.concat([baseline, delta], ignore_index=True)
+
+
 def apply_range(frame: pd.DataFrame, date_column: str, start: str | None, end: str | None) -> pd.DataFrame:
     output = frame.copy()
     if start:
@@ -190,7 +215,7 @@ def create_backfill(input_dir: Path, configuration_book: Path, output_dir: Path,
     relation_path, cards_path, transaction_paths = source_files(input_dir)
     mapping, monthly_targets, allowed_bds = load_configuration(configuration_book)
 
-    relation = read_table(relation_path)
+    relation = read_relationship_with_updates(relation_path)
     require_columns(relation, ["用户UID", "总代UID", "上一级UID", "注册时间"], relation_path.name)
     relation = relation[["用户UID", "总代UID", "上一级UID", "注册时间"]].copy()
     relation.columns = ["user_uid", "master_uid", "parent_uid", "registered_at"]
