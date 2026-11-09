@@ -31,6 +31,8 @@ const cookieReq = (token, path = '/') => req(path, { headers: { Cookie: `${SESSI
 test('shared dashboard client never imports a complete fallback snapshot', () => {
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(page, /import\s+\w+\s+from\s+["'].+(dashboard-data|wallet-data)\.json/);
+  // Local persisted business data is not scoped to the newly signed-in account.
+  assert.doesNotMatch(page, /localStorage\.(getItem|setItem)\(/);
 });
 
 test('BD login is separate from admin and can load the shared UI but cannot publish data', async () => {
@@ -162,11 +164,11 @@ test('existing sync key allows only the dashboard API; wrong or missing keys fai
   assert.equal((await accessResponse(req('/assets/page.js', { headers: { Authorization: 'Bearer sync-key' } }), env())).status, 401);
 });
 
-test('logout clears the session and local cached data', async () => {
+test('logout expires the session without blocking on origin storage clearing', async () => {
   const response = await accessResponse(req('/access/logout', { method: 'POST', headers: { Origin: origin } }), env());
   assert.equal(response.status, 303); assert.equal(response.headers.get('Location'), '/access');
   assert.match(response.headers.get('Set-Cookie'), /Max-Age=0/);
-  assert.match(response.headers.get('Clear-Site-Data'), /storage/);
+  assert.equal(response.headers.get('Clear-Site-Data'), null);
 });
 
 test('language switch defaults to English, shows real logo and no footer; username is required', async () => {
@@ -180,4 +182,21 @@ test('language switch defaults to English, shows real logo and no footer; userna
  assert.equal((await accessResponse(missing, env())).status,401);
  const wrong = req('/access/login?lang=zh', {method:'POST',headers:{Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:'wrong',password:env().DASHBOARD_PASSWORD})});
  const response = await accessResponse(wrong,env()); assert.equal(response.status,401); assert.match(await response.text(),/用户名或密码不正确/);
+});
+
+test('API client records are staging-only and restricted to primary upay', async () => {
+  const settings = env();
+  const primary = cookieReq(createSession(settings), '/api/api-clients');
+  assert.equal(await accessResponse(primary, settings), null);
+  assert.equal((await productionExports.accessResponse(primary, settings)).status, 404);
+  const secondary = cookieReq(createSession({...settings,DASHBOARD_USERNAME:'manager2',DASHBOARD_PASSWORD:'Manager-password-456'}), '/api/api-clients');
+  assert.equal((await accessResponse(secondary, settings)).status, 403);
+  const bd = cookieReq(createSession({...settings,DASHBOARD_USERNAME:'Katrina',DASHBOARD_PASSWORD:'Katrina-password-456'}), '/api/api-clients');
+  assert.equal((await accessResponse(bd, settings)).status, 403);
+  assert.equal((await accessResponse(req('/api/api-clients'), settings)).status, 403);
+});
+
+test('configured UPay capitalization still identifies the primary account', async () => {
+ const settings={...env(),DASHBOARD_USERNAME:'UPay'};
+ assert.equal(await accessResponse(cookieReq(createSession(settings),'/api/api-clients'),settings),null);
 });

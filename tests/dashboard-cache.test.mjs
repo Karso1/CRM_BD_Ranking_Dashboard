@@ -52,6 +52,20 @@ test('normal stale read updates the retained cache; forced reads always bypass i
  await fresh.read('');assert.equal(fresh.fetches(),0);await fresh.read('&refresh=1',{Authorization:'Bearer valid'});assert.equal(fresh.fetches(),1);
 });
 
+test('production rejects a fresh staging source cache and loads its own source',async()=>{
+ const production={environment:'production',wallet:{periods:[{end:'2026-11-08'}]}};
+ const h=harness(Response.json(payload,{headers:{'X-Validated-At':String(Date.now())}}),undefined,'production',production);
+ const response=await h.read('');
+ assert.equal(h.fetches(),1);
+ assert.equal((await response.json()).wallet.periods[0].end,'2026-11-08');
+});
+
+test('production cache-only probe never relabels a staging source cache',async()=>{
+ const h=harness(Response.json(payload,{headers:{'X-Validated-At':String(Date.now())}}),undefined,'production');
+ assert.equal((await h.read('&cacheOnly=1')).status,204);
+ assert.equal(h.fetches(),0);
+});
+
 test('published staging snapshot serves immediately without a Google request',async()=>{
  let requestedKey;
  const snapshots={get:async(key,options)=>{requestedKey=[key,options];return payload}};

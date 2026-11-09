@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppThemeProvider } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
   title: "UPay Operations Platform",
@@ -19,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className="antialiased"><AppThemeProvider>{children}</AppThemeProvider></body>
     </html>
   );
 }

@@ -42,8 +42,9 @@ def output_hashes(output: Path) -> dict:
 
 def upb_mapping_file(formal: Path) -> Path:
     folder = formal / "BD代理关系目标"
-    candidates = sorted(path for path in folder.glob("*.xlsx")
-        if path.is_file() and not path.name.startswith(("~$", ".")))
+    # glob silently hides OS permission errors, incorrectly reporting "0 files".
+    candidates = sorted(path for path in folder.iterdir()
+        if path.suffix.lower() == ".xlsx" and path.is_file() and not path.name.startswith(("~$", ".")))
     if len(candidates) != 1:
         raise ValueError(f"{folder} 必须恰好有一份正式 BD 配置表，当前找到 {len(candidates)} 份；请勿使用 Excel 临时文件。")
     return candidates[0]

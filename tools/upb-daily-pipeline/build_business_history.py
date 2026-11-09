@@ -77,8 +77,8 @@ def excel_files(folder: Path) -> list[Path]:
 
 def configuration_file(root: Path) -> Path:
     folder = root / "BD代理关系目标"
-    candidates = sorted(path for path in folder.glob("*.xlsx")
-        if path.is_file() and not path.name.startswith(("~$", ".")))
+    candidates = sorted(path for path in folder.iterdir()
+        if path.suffix.lower() == ".xlsx" and path.is_file() and not path.name.startswith(("~$", ".")))
     if len(candidates) != 1:
         raise ValueError(f"{folder} 必须恰好有一份正式 BD 配置表，当前找到 {len(candidates)} 份。")
     return candidates[0]

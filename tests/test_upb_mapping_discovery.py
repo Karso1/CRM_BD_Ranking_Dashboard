@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,12 @@ from build_business_history import configuration_file
 
 
 class UpbMappingDiscoveryTests(unittest.TestCase):
+    def test_permission_denial_is_not_reported_as_missing_workbooks(self):
+        with patch.object(Path, "iterdir", side_effect=PermissionError("Desktop access denied")):
+            for discover in (pipeline.upb_mapping_file, configuration_file):
+                with self.assertRaisesRegex(PermissionError, "Desktop access denied"):
+                    discover(Path("fixture"))
+
     def test_accepts_unique_workbook_and_ignores_excel_lock(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

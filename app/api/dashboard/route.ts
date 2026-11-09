@@ -100,7 +100,7 @@ export async function GET(request: Request) {
         const payload = await cached.json() as { environment?: string; error?: string };
         if (payload.error) {
           await cache.delete(cacheKey);
-        } else if (!isStaging || payload.environment === "staging") {
+        } else if (payload.environment === deploymentEnvironment) {
           const checkedAt = Number(cached.headers.get("X-Validated-At") || 0);
           const fresh = Date.now() - checkedAt < 60_000;
           if (cacheOnly || fresh) {

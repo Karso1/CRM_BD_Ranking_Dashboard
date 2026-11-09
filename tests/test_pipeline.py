@@ -12,23 +12,28 @@ import pipeline
 
 class PipelineTests(unittest.TestCase):
     def test_shared_code_and_separate_data_for_both_platforms(self):
-        for platform in ("upw", "upb"):
-            production = pipeline.plan(platform, "production")
-            staging = pipeline.plan(platform, "staging")
-            for phase in ("calculate", "sync"):
-                # Python executable, warnings, and code file must be identical.
-                self.assertEqual(production[phase][:5], staging[phase][:5])
-                self.assertIn(str(ROOT / "tools"), production[phase][4])
-            self.assertNotEqual(production["settings"], staging["settings"])
-            self.assertNotEqual(production["output"], staging["output"])
-            self.assertIn("--expected-environment", production["sync"])
-            self.assertIn("production", production["sync"])
-            self.assertIn("staging", staging["sync"])
-            self.assertIn("ranking-staging", staging["sync"][-1])
-            if platform == "upw":
-                for execution in (staging, production):
-                    command = execution["calculate"]
-                    self.assertEqual(command[command.index("--config") + 1], str(ROOT / "tools/upw-daily-pipeline/config.json"))
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            mapping = workspace / "tools/daily-operations/03-原始数据/UPB每日数据/BD代理关系目标"
+            mapping.mkdir(parents=True)
+            (mapping / "fixture.xlsx").touch()
+            for platform in ("upw", "upb"):
+                production = pipeline.plan(platform, "production", workspace)
+                staging = pipeline.plan(platform, "staging", workspace)
+                for phase in ("calculate", "sync"):
+                    # Python executable, warnings, and code file must be identical.
+                    self.assertEqual(production[phase][:5], staging[phase][:5])
+                    self.assertIn(str(workspace / "tools"), production[phase][4])
+                self.assertNotEqual(production["settings"], staging["settings"])
+                self.assertNotEqual(production["output"], staging["output"])
+                self.assertIn("--expected-environment", production["sync"])
+                self.assertIn("production", production["sync"])
+                self.assertIn("staging", staging["sync"])
+                self.assertIn("ranking-staging", staging["sync"][-1])
+                if platform == "upw":
+                    for execution in (staging, production):
+                        command = execution["calculate"]
+                        self.assertEqual(command[command.index("--config") + 1], str(workspace / "tools/upw-daily-pipeline/config.json"))
 
     def test_lock_serializes_platforms_and_releases_after_failure(self):
         with tempfile.TemporaryDirectory() as temporary:

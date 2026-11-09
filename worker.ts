@@ -1,3 +1,4 @@
+import { clientResponse } from "./lib/api-clients";
 import handler from "vinext/server/fetch-handler";
 import { accessResponse, privateResponse } from "./lib/site-access";
 import { sessionPrincipal } from "./lib/site-access";
@@ -8,8 +9,13 @@ export default {
     const response = await accessResponse(request, env);
     if (response) return response;
     const principal = sessionPrincipal(request, env);
+    if (new URL(request.url).pathname === "/api/api-clients") {
+      if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== "staging") return privateResponse(new Response("Not found", {status:404}));
+      if (principal?.role !== "admin" || !principal.primary || env.DASHBOARD_USERNAME?.toLowerCase() !== "upay") return privateResponse(new Response("Forbidden", {status:403}));
+      return privateResponse(await clientResponse(request, env.DASHBOARD_SNAPSHOTS));
+    }
     if (new URL(request.url).pathname === "/api/permissions") {
-      return privateResponse(Response.json({ canExport: principal?.role === "admin" && principal.primary }));
+      return privateResponse(Response.json({ canExport: principal?.role === "admin" && principal.primary, canApiClients: process.env.NEXT_PUBLIC_DEPLOYMENT_ENV === "staging" && principal?.role === "admin" && principal.primary && env.DASHBOARD_USERNAME?.toLowerCase() === "upay" }));
     }
     if (principal?.role === "bd") {
       const url = new URL(request.url);

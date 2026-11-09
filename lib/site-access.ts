@@ -170,7 +170,7 @@ export async function accessResponse(request: Request, env: AccessEnv): Promise<
     if (request.headers.get("Origin") !== url.origin) return privateResponse(new Response("Forbidden", { status: 403 }));
     if (url.pathname.endsWith("/logout")) {
       const response = redirect("/access", `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
-      response.headers.set("Clear-Site-Data", '"cache", "storage"');
+      // Private responses are no-store; clearing all origin storage can block navigation.
       return response;
     }
     if (!env.LOGIN_RATE_LIMITER) return loginPage(lang, "unavailable", 503);
@@ -215,6 +215,10 @@ export async function accessResponse(request: Request, env: AccessEnv): Promise<
   if (url.pathname === "/access") {
     if (!["GET", "HEAD"].includes(request.method)) return privateResponse(new Response("Method not allowed", { status: 405 }));
     return principal ? redirect("/") : loginPage(lang);
+  }
+  if (url.pathname === "/api/api-clients") {
+    if (process.env.NEXT_PUBLIC_DEPLOYMENT_ENV !== "staging") return privateResponse(new Response("Not found", {status:404}));
+    if (principal?.role !== "admin" || !principal.primary || env.DASHBOARD_USERNAME?.toLowerCase() !== "upay") return privateResponse(new Response("Forbidden", {status:403}));
   }
   if (principal?.role === "admin") return null;
   if (principal?.role === "bd") {
